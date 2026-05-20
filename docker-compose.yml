@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: ticket_support_postgres
+    environment:
+      POSTGRES_DB: ticket_support
+      POSTGRES_USER: ticket_user
+      POSTGRES_PASSWORD: ticket_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - ticket_support_pgdata:/var/lib/postgresql/data
+
+volumes:
+  ticket_support_pgdata:

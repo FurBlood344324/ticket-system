@@ -1,0 +1,88 @@
+@model TicketListViewModel
+
+@{
+    ViewData["Title"] = "Talepler";
+}
+
+@functions {
+    private static string StatusText(TicketStatus status) => status switch
+    {
+        TicketStatus.Open => "Açık",
+        TicketStatus.Solved => "Çözüldü",
+        TicketStatus.Closed => "Kapandı",
+        _ => status.ToString()
+    };
+
+    private static string StatusClass(TicketStatus status) => status switch
+    {
+        TicketStatus.Open => "text-bg-warning",
+        TicketStatus.Solved => "text-bg-success",
+        TicketStatus.Closed => "text-bg-secondary",
+        _ => "text-bg-light"
+    };
+}
+
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1">Destek talepleri</h1>
+        <p class="text-muted mb-0">
+            @if (User.IsInRole("Support"))
+            {
+                <span>Tüm müşterilerden gelen talepler listelenir.</span>
+            }
+            else
+            {
+                <span>Sadece kendi oluşturduğunuz talepleri görürsünüz.</span>
+            }
+        </p>
+    </div>
+
+    @if (User.IsInRole("Customer"))
+    {
+        <a class="btn btn-primary" asp-action="Create">Yeni talep oluştur</a>
+    }
+</div>
+
+<div class="btn-group mb-3" role="group" aria-label="Durum filtresi">
+    <a class="btn @(Model.StatusFilter is null ? "btn-primary" : "btn-outline-primary")" asp-action="Index">Tümü</a>
+    <a class="btn @(Model.StatusFilter == TicketStatus.Open ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="Open">Açık</a>
+    <a class="btn @(Model.StatusFilter == TicketStatus.Solved ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="Solved">Çözüldü</a>
+    <a class="btn @(Model.StatusFilter == TicketStatus.Closed ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="Closed">Kapandı</a>
+</div>
+
+@if (Model.Tickets.Count == 0)
+{
+    <div class="alert alert-info">Bu filtreye uygun destek talebi yok.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
+                <tr>
+                    <th>Başlık</th>
+                    <th>Müşteri</th>
+                    <th>Destek</th>
+                    <th>Durum</th>
+                    <th>Oluşturma</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var ticket in Model.Tickets)
+                {
+                    <tr>
+                        <td class="fw-semibold">@ticket.Title</td>
+                        <td>@ticket.CustomerName</td>
+                        <td>@(ticket.AssignedSupportName ?? "Atanmadı")</td>
+                        <td><span class="badge @StatusClass(ticket.Status)">@StatusText(ticket.Status)</span></td>
+                        <td>@ticket.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                        <td class="text-end">
+                            <a class="btn btn-sm btn-outline-primary" asp-action="Details" asp-route-id="@ticket.Id">Detay</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

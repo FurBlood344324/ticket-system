@@ -1,0 +1,47 @@
+﻿@{
+    ViewData["Title"] = "Ana Sayfa";
+}
+
+<section class="p-4 p-md-5 rounded-3 bg-light border">
+    <div class="row align-items-center g-4">
+        <div class="col-lg-8">
+            <h1 class="display-6 fw-semibold">Teknik Destek / Ticket Sistemi</h1>
+            <p class="lead mb-0">
+                Müşteriler destek talebi oluşturur ve durumunu takip eder. Destek ekibi talepleri üstlenir,
+                cevap yazar ve durumu Açık, Çözüldü veya Kapandı olarak günceller.
+            </p>
+        </div>
+        <div class="col-lg-4 text-lg-end">
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <a class="btn btn-primary btn-lg" asp-controller="Tickets" asp-action="Index">Talepleri aç</a>
+            }
+            else
+            {
+                <a class="btn btn-primary btn-lg" asp-controller="Account" asp-action="Login">Giriş yap</a>
+                <a class="btn btn-outline-primary btn-lg ms-2" asp-controller="Account" asp-action="Register">Kayıt ol</a>
+            }
+        </div>
+    </div>
+</section>
+
+<div class="row mt-4 g-3">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h2 class="h5">Demo müşteri</h2>
+                <p class="mb-1"><strong>E-posta:</strong> musteri@ticket.local</p>
+                <p class="mb-0"><strong>Şifre:</strong> 123456</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h2 class="h5">Demo destek ekibi</h2>
+                <p class="mb-1"><strong>E-posta:</strong> destek@ticket.local</p>
+                <p class="mb-0"><strong>Şifre:</strong> 123456</p>
+            </div>
+        </div>
+    </div>
+</div>
