@@ -86,10 +86,25 @@ public class AccountController : Controller
     }
 
     [Authorize]
+    [HttpGet("/change-password")]
+    public IActionResult ChangePasswordEntry()
+    {
+        return LocalRedirect("/Account/ChangePassword");
+    }
+
+    [Authorize]
     [HttpGet]
     public IActionResult ChangePassword()
     {
         return View(new ChangePasswordViewModel());
+    }
+
+    [Authorize]
+    [HttpPost("/change-password")]
+    [ValidateAntiForgeryToken]
+    public IActionResult ChangePasswordEntry(ChangePasswordViewModel model)
+    {
+        return ChangePassword(model);
     }
 
     [Authorize]
@@ -99,7 +114,7 @@ public class AccountController : Controller
     {
         if (!ModelState.IsValid)
         {
-            return View(model);
+            return View(nameof(ChangePassword), model);
         }
 
         var userId = int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : 0;
@@ -112,7 +127,7 @@ public class AccountController : Controller
         if (!passwordHasher.Verify(model.CurrentPassword, user.PasswordHash))
         {
             ModelState.AddModelError(nameof(model.CurrentPassword), "Mevcut şifre hatalı.");
-            return View(model);
+            return View(nameof(ChangePassword), model);
         }
 
         user.PasswordHash = passwordHasher.Hash(model.NewPassword);
