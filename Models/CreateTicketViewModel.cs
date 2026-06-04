@@ -11,4 +11,8 @@ public class CreateTicketViewModel
     [Required(ErrorMessage = "Açıklama zorunludur.")]
     [StringLength(1200, MinimumLength = 10, ErrorMessage = "Açıklama 10-1200 karakter arasında olmalıdır.")]
     public string Description { get; set; } = string.Empty;
+
+    public TicketPriority Priority { get; set; } = TicketPriority.Medium;
+
+    public TicketCategory Category { get; set; } = TicketCategory.Other;
 }

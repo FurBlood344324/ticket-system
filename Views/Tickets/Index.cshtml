@@ -10,6 +10,9 @@
         TicketStatus.Open => "Açık",
         TicketStatus.Solved => "Çözüldü",
         TicketStatus.Closed => "Kapandı",
+        TicketStatus.InProgress => "İşlemde",
+        TicketStatus.WaitingCustomer => "Müşteri Bekleniyor",
+        TicketStatus.Cancelled => "İptal",
         _ => status.ToString()
     };
 
@@ -18,6 +21,9 @@
         TicketStatus.Open => "text-bg-warning",
         TicketStatus.Solved => "text-bg-success",
         TicketStatus.Closed => "text-bg-secondary",
+        TicketStatus.InProgress => "text-bg-info",
+        TicketStatus.WaitingCustomer => "text-bg-primary",
+        TicketStatus.Cancelled => "text-bg-dark",
         _ => "text-bg-light"
     };
 }
@@ -44,10 +50,13 @@
 </div>
 
 <div class="btn-group mb-3" role="group" aria-label="Durum filtresi">
-    <a class="btn @(Model.StatusFilter is null ? "btn-primary" : "btn-outline-primary")" asp-action="Index">Tümü</a>
-    <a class="btn @(Model.StatusFilter == TicketStatus.Open ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="Open">Açık</a>
-    <a class="btn @(Model.StatusFilter == TicketStatus.Solved ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="Solved">Çözüldü</a>
-    <a class="btn @(Model.StatusFilter == TicketStatus.Closed ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="Closed">Kapandı</a>
+    <a class="btn @(Model.StatusFilter is null ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-priority="@Model.PriorityFilter" asp-route-category="@Model.CategoryFilter" asp-route-tag="@Model.TagFilter">Tümü</a>
+    <a class="btn @(Model.StatusFilter == TicketStatus.Open ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="Open" asp-route-priority="@Model.PriorityFilter" asp-route-category="@Model.CategoryFilter" asp-route-tag="@Model.TagFilter">Açık</a>
+    <a class="btn @(Model.StatusFilter == TicketStatus.InProgress ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="InProgress" asp-route-priority="@Model.PriorityFilter" asp-route-category="@Model.CategoryFilter" asp-route-tag="@Model.TagFilter">İşlemde</a>
+    <a class="btn @(Model.StatusFilter == TicketStatus.WaitingCustomer ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="WaitingCustomer" asp-route-priority="@Model.PriorityFilter" asp-route-category="@Model.CategoryFilter" asp-route-tag="@Model.TagFilter">Müşteri Bekleniyor</a>
+    <a class="btn @(Model.StatusFilter == TicketStatus.Solved ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="Solved" asp-route-priority="@Model.PriorityFilter" asp-route-category="@Model.CategoryFilter" asp-route-tag="@Model.TagFilter">Çözüldü</a>
+    <a class="btn @(Model.StatusFilter == TicketStatus.Closed ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="Closed" asp-route-priority="@Model.PriorityFilter" asp-route-category="@Model.CategoryFilter" asp-route-tag="@Model.TagFilter">Kapandı</a>
+    <a class="btn @(Model.StatusFilter == TicketStatus.Cancelled ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="Cancelled" asp-route-priority="@Model.PriorityFilter" asp-route-category="@Model.CategoryFilter" asp-route-tag="@Model.TagFilter">İptal</a>
 </div>
 
 @if (Model.Tickets.Count == 0)
@@ -64,6 +73,8 @@ else
                     <th>Müşteri</th>
                     <th>Destek</th>
                     <th>Durum</th>
+                    <th>Öncelik</th>
+                    <th>Kategori</th>
                     <th>Oluşturma</th>
                     <th></th>
                 </tr>
@@ -76,6 +87,8 @@ else
                         <td>@ticket.CustomerName</td>
                         <td>@(ticket.AssignedSupportName ?? "Atanmadı")</td>
                         <td><span class="badge @StatusClass(ticket.Status)">@StatusText(ticket.Status)</span></td>
+                        <td>@ticket.Priority</td>
+                        <td>@ticket.Category</td>
                         <td>@ticket.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
                         <td class="text-end">
                             <a class="btn btn-sm btn-outline-primary" asp-action="Details" asp-route-id="@ticket.Id">Detay</a>

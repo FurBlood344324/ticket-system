@@ -92,7 +92,10 @@ public class PostgresAppDataStore : IAppDataStore
     {
         return dbContext.Tickets
             .AsNoTracking()
+            .Include(ticket => ticket.Department)
             .Include(ticket => ticket.Replies)
+            .Include(ticket => ticket.Tags)
+            .ThenInclude(relation => relation.Tag)
             .OrderByDescending(ticket => ticket.CreatedAt)
             .ToList();
     }
@@ -101,7 +104,10 @@ public class PostgresAppDataStore : IAppDataStore
     {
         return dbContext.Tickets
             .AsNoTracking()
+            .Include(ticket => ticket.Department)
             .Include(ticket => ticket.Replies)
+            .Include(ticket => ticket.Tags)
+            .ThenInclude(relation => relation.Tag)
             .FirstOrDefault(ticket => ticket.Id == id);
     }
 
@@ -111,6 +117,8 @@ public class PostgresAppDataStore : IAppDataStore
         {
             Title = model.Title.Trim(),
             Description = model.Description.Trim(),
+            Priority = model.Priority,
+            Category = model.Category,
             CustomerId = customer.Id,
             CustomerName = customer.FullName
         };
@@ -130,6 +138,7 @@ public class PostgresAppDataStore : IAppDataStore
 
         ticket.AssignedSupportId = supportUser.Id;
         ticket.AssignedSupportName = supportUser.FullName;
+        ticket.LastUpdatedAt = DateTime.UtcNow;
         dbContext.SaveChanges();
     }
 
@@ -142,6 +151,10 @@ public class PostgresAppDataStore : IAppDataStore
         }
 
         ticket.Status = model.Status;
+        ticket.FirstResponseAt ??= DateTime.UtcNow;
+        ticket.ResolvedAt = model.Status is TicketStatus.Solved or TicketStatus.Closed
+            ? DateTime.UtcNow
+            : null;
         dbContext.TicketReplies.Add(new TicketReply
         {
             TicketId = ticket.Id,

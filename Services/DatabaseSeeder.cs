@@ -92,6 +92,8 @@ public static class DatabaseSeeder
         {
             Title = "Demo destek talebi",
             Description = "Bu kayıt uygulamayı ilk çalıştırdığınızda liste ve detay ekranını görmek için eklenmiştir.",
+            Priority = TicketPriority.Medium,
+            Category = TicketCategory.Other,
             CustomerId = customer.Id,
             CustomerName = customer.FullName
         });

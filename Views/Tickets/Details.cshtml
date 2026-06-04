@@ -11,6 +11,9 @@
         TicketStatus.Open => "Açık",
         TicketStatus.Solved => "Çözüldü",
         TicketStatus.Closed => "Kapandı",
+        TicketStatus.InProgress => "İşlemde",
+        TicketStatus.WaitingCustomer => "Müşteri Bekleniyor",
+        TicketStatus.Cancelled => "İptal",
         _ => status.ToString()
     };
 
@@ -19,6 +22,9 @@
         TicketStatus.Open => "text-bg-warning",
         TicketStatus.Solved => "text-bg-success",
         TicketStatus.Closed => "text-bg-secondary",
+        TicketStatus.InProgress => "text-bg-info",
+        TicketStatus.WaitingCustomer => "text-bg-primary",
+        TicketStatus.Cancelled => "text-bg-dark",
         _ => "text-bg-light"
     };
 }
@@ -74,6 +80,12 @@
                     <dd>@(Model.AssignedSupportName ?? "Atanmadı")</dd>
                     <dt>Durum</dt>
                     <dd>@StatusText(Model.Status)</dd>
+                    <dt>Öncelik</dt>
+                    <dd>@Model.Priority</dd>
+                    <dt>Kategori</dt>
+                    <dd>@Model.Category</dd>
+                    <dt>Son güncelleme</dt>
+                    <dd>@Model.LastUpdatedAt.ToString("dd.MM.yyyy HH:mm")</dd>
                 </dl>
 
                 @if (User.IsInRole("Support") && Model.AssignedSupportId is null)
