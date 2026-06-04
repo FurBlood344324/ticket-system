@@ -20,7 +20,7 @@ public class ApplicationDbContext : DbContext
             entity.HasKey(user => user.Id);
             entity.Property(user => user.FullName).HasMaxLength(80).IsRequired();
             entity.Property(user => user.Email).HasMaxLength(120).IsRequired();
-            entity.Property(user => user.PasswordHash).HasMaxLength(64).IsRequired();
+            entity.Property(user => user.PasswordHash).HasMaxLength(120).IsRequired();
             entity.HasIndex(user => user.Email).IsUnique();
         });
 

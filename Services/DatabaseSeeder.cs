@@ -5,7 +5,7 @@ namespace TicketSupport.Services;
 
 public static class DatabaseSeeder
 {
-    public static void Seed(ApplicationDbContext dbContext)
+    public static void Seed(ApplicationDbContext dbContext, PasswordHasher passwordHasher)
     {
         var supportUser = dbContext.Users.FirstOrDefault(user => user.Email == "destek@ticket.local");
         if (supportUser is null)
@@ -14,7 +14,7 @@ public static class DatabaseSeeder
             {
                 FullName = "Destek Personeli",
                 Email = "destek@ticket.local",
-                PasswordHash = PasswordHasher.Hash("123456"),
+                PasswordHash = passwordHasher.Hash("123456"),
                 Role = UserRole.Support
             };
             dbContext.Users.Add(supportUser);
@@ -27,7 +27,7 @@ public static class DatabaseSeeder
             {
                 FullName = "Demo Müşteri",
                 Email = "musteri@ticket.local",
-                PasswordHash = PasswordHasher.Hash("123456"),
+                PasswordHash = passwordHasher.Hash("123456"),
                 Role = UserRole.Customer
             };
             dbContext.Users.Add(customer);

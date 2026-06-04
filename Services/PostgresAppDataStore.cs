@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using System.Security.Cryptography;
+using System.Text;
 using TicketSupport.Data;
 using TicketSupport.Models;
 
@@ -7,10 +9,12 @@ namespace TicketSupport.Services;
 public class PostgresAppDataStore : IAppDataStore
 {
     private readonly ApplicationDbContext dbContext;
+    private readonly PasswordHasher passwordHasher;
 
-    public PostgresAppDataStore(ApplicationDbContext dbContext)
+    public PostgresAppDataStore(ApplicationDbContext dbContext, PasswordHasher passwordHasher)
     {
         this.dbContext = dbContext;
+        this.passwordHasher = passwordHasher;
     }
 
     public List<AppUser> GetUsers()
@@ -30,7 +34,7 @@ public class PostgresAppDataStore : IAppDataStore
         {
             FullName = model.FullName.Trim(),
             Email = model.Email.Trim().ToLowerInvariant(),
-            PasswordHash = PasswordHasher.Hash(model.Password),
+            PasswordHash = passwordHasher.Hash(model.Password),
             Role = UserRole.Customer
         };
 
@@ -41,7 +45,47 @@ public class PostgresAppDataStore : IAppDataStore
 
     public bool IsPasswordValid(AppUser user, string password)
     {
-        return user.PasswordHash == PasswordHasher.Hash(password);
+        if (IsBcryptHash(user.PasswordHash))
+        {
+            return passwordHasher.Verify(password, user.PasswordHash);
+        }
+
+        if (!IsLegacySha256Hash(user.PasswordHash) || !VerifyLegacySha256(password, user.PasswordHash))
+        {
+            return false;
+        }
+
+        user.PasswordHash = passwordHasher.Hash(password);
+        dbContext.SaveChanges();
+        return true;
+    }
+
+    private static bool IsBcryptHash(string hash)
+    {
+        return !string.IsNullOrWhiteSpace(hash)
+            && hash.Length == 60
+            && hash.StartsWith("$2", StringComparison.Ordinal);
+    }
+
+    private static bool IsLegacySha256Hash(string hash)
+    {
+        return !string.IsNullOrWhiteSpace(hash)
+            && hash.Length == 64
+            && hash.All(IsHexCharacter);
+    }
+
+    private static bool VerifyLegacySha256(string password, string hash)
+    {
+        var expectedHashBytes = Convert.FromHexString(hash);
+        var actualHashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(password));
+        return CryptographicOperations.FixedTimeEquals(actualHashBytes, expectedHashBytes);
+    }
+
+    private static bool IsHexCharacter(char value)
+    {
+        return value is >= '0' and <= '9'
+            or >= 'A' and <= 'F'
+            or >= 'a' and <= 'f';
     }
 
     public List<SupportTicket> GetTickets()
