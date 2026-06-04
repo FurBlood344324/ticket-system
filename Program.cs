@@ -22,6 +22,7 @@ builder.Services
         options.ExpireTimeSpan = TimeSpan.FromHours(4);
     });
 
+// Issue 2.2
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())

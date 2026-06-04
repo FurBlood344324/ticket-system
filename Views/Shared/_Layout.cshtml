@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="utf-8" />
@@ -26,6 +26,9 @@
                         </li>
                         @if (User.Identity?.IsAuthenticated == true)
                         {
+                            <li class="nav-item">
+                                <a class="nav-link text-dark" asp-controller="Dashboard" asp-action="Index">Dashboard</a>
+                            </li>
                             <li class="nav-item">
                                 <a class="nav-link text-dark" asp-controller="Tickets" asp-action="Index">Talepler</a>
                             </li>

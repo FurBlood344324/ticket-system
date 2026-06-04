@@ -41,7 +41,7 @@ public class AccountController : Controller
         }
 
         await SignIn(user);
-        return RedirectToAction("Index", "Tickets");
+        return RedirectToAction("Index", "Dashboard");
     }
 
     [AllowAnonymous]
@@ -68,7 +68,7 @@ public class AccountController : Controller
 
         var user = dataStore.AddCustomer(model);
         await SignIn(user);
-        return RedirectToAction("Index", "Tickets");
+        return RedirectToAction("Index", "Dashboard");
     }
 
     [Authorize]

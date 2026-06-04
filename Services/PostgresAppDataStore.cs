@@ -515,4 +515,108 @@ public class PostgresAppDataStore : IAppDataStore
         var normalized = message.Trim().Replace(Environment.NewLine, " ");
         return normalized.Length <= 180 ? normalized : $"{normalized[..177]}...";
     }
+
+    public DashboardViewModel GetDashboardData(AppUser currentUser)
+    {
+        var now = DateTime.UtcNow;
+        var todayStart = now.Date;
+        var sevenDaysAgo = now.Date.AddDays(-6);
+
+        var query = dbContext.Tickets.AsNoTracking().AsQueryable();
+
+        // Role-based filtering
+        if (currentUser.Role == UserRole.Customer)
+        {
+            query = query.Where(t => t.CustomerId == currentUser.Id);
+        }
+        else if (currentUser.Role == UserRole.Support)
+        {
+            query = query.Where(t => t.AssignedSupportId == currentUser.Id || t.AssignedSupportId == null);
+        }
+        // Admin sees everything
+
+        var tickets = query.ToList();
+
+        var model = new DashboardViewModel
+        {
+            UserRole = currentUser.Role.ToString(),
+            UserName = currentUser.FullName,
+            TotalCount = tickets.Count,
+            OpenCount = tickets.Count(t => t.Status == TicketStatus.Open),
+            InProgressCount = tickets.Count(t => t.Status == TicketStatus.InProgress),
+            SolvedCount = tickets.Count(t => t.Status == TicketStatus.Solved),
+            ClosedCount = tickets.Count(t => t.Status == TicketStatus.Closed),
+            UnassignedCount = tickets.Count(t => t.AssignedSupportId == null
+                && t.Status != TicketStatus.Solved
+                && t.Status != TicketStatus.Closed
+                && t.Status != TicketStatus.Cancelled),
+            TodayResolvedCount = tickets.Count(t => t.ResolvedAt.HasValue && t.ResolvedAt.Value.Date == todayStart),
+            SlaBreachCount = tickets.Count(t => t.DueDate.HasValue
+                && t.DueDate.Value < now
+                && t.Status != TicketStatus.Solved
+                && t.Status != TicketStatus.Closed
+                && t.Status != TicketStatus.Cancelled)
+        };
+
+        // Category distribution
+        var categoryGroups = tickets
+            .GroupBy(t => t.Category)
+            .OrderBy(g => g.Key)
+            .ToList();
+        model.CategoryLabels = categoryGroups.Select(g => g.Key.ToString()).ToList();
+        model.CategoryCounts = categoryGroups.Select(g => g.Count()).ToList();
+
+        // Priority distribution
+        var priorityGroups = tickets
+            .GroupBy(t => t.Priority)
+            .OrderBy(g => g.Key)
+            .ToList();
+        model.PriorityLabels = priorityGroups.Select(g => g.Key.ToString()).ToList();
+        model.PriorityCounts = priorityGroups.Select(g => g.Count()).ToList();
+
+        // Last 7 days trend
+        for (var day = 0; day < 7; day++)
+        {
+            var date = sevenDaysAgo.AddDays(day);
+            model.TrendLabels.Add(date.ToString("dd MMM"));
+            model.TrendCounts.Add(tickets.Count(t => t.CreatedAt.Date == date));
+        }
+
+        // SLA breach tickets
+        model.SlaBreachTickets = tickets
+            .Where(t => t.DueDate.HasValue
+                && t.DueDate.Value < now
+                && t.Status != TicketStatus.Solved
+                && t.Status != TicketStatus.Closed
+                && t.Status != TicketStatus.Cancelled)
+            .OrderBy(t => t.DueDate)
+            .Take(10)
+            .Select(t => new SlaBreachItem
+            {
+                TicketId = t.Id,
+                Title = t.Title,
+                CustomerName = t.CustomerName,
+                AssignedTo = t.AssignedSupportName,
+                Priority = t.Priority.ToString(),
+                DueDate = t.DueDate,
+                Status = t.Status.ToString()
+            })
+            .ToList();
+
+        // Recent updates (last 10 updated tickets)
+        model.RecentUpdates = tickets
+            .OrderByDescending(t => t.LastUpdatedAt)
+            .Take(10)
+            .Select(t => new RecentUpdateItem
+            {
+                TicketId = t.Id,
+                Title = t.Title,
+                Status = t.Status.ToString(),
+                UpdatedBy = t.AssignedSupportName ?? t.CustomerName,
+                UpdatedAt = t.LastUpdatedAt
+            })
+            .ToList();
+
+        return model;
+    }
 }

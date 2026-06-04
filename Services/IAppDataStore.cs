@@ -22,4 +22,6 @@ public interface IAppDataStore
     void AddTimeEntry(int ticketId, TicketTimeEntryViewModel model, AppUser user, string? auditAction = null);
     void UpdateTicket(int ticketId, TicketEditViewModel model, AppUser actor);
     void UpdateStatus(int ticketId, TicketStatus status, AppUser actor);
+
+    DashboardViewModel GetDashboardData(AppUser currentUser);
 }
