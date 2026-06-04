@@ -10,3 +10,7 @@ obj/
 Data/app-data.json
 
 .firecrawl/
+
+# Azure deployment
+.env
+.azure/
