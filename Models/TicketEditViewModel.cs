@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TicketSupport.Models;
 
-public class CreateTicketViewModel
+public class TicketEditViewModel
 {
     [Required(ErrorMessage = "Başlık zorunludur.")]
     [StringLength(120, MinimumLength = 5, ErrorMessage = "Başlık 5-120 karakter arasında olmalıdır.")]
@@ -12,11 +12,9 @@ public class CreateTicketViewModel
     [StringLength(1200, MinimumLength = 10, ErrorMessage = "Açıklama 10-1200 karakter arasında olmalıdır.")]
     public string Description { get; set; } = string.Empty;
 
+    [Required]
     public TicketPriority Priority { get; set; } = TicketPriority.Medium;
 
+    [Required]
     public TicketCategory Category { get; set; } = TicketCategory.Other;
-
-    public int? SelectedTemplateId { get; set; }
-
-    public List<TicketTemplate> AvailableTemplates { get; set; } = [];
 }

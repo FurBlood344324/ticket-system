@@ -5,35 +5,66 @@
 }
 
 <div class="row justify-content-center">
-    <div class="col-lg-8">
+    <div class="col-xl-9">
         <div class="card shadow-sm">
-            <div class="card-body p-4">
+            <div class="card-body p-4 p-lg-5">
                 <h1 class="h3 mb-3">Yeni destek talebi</h1>
+                <p class="text-muted">Talebi daha hızlı açmak için şablon seçebilir, dosyaları sürükleyip bırakabilirsiniz.</p>
 
-                <form asp-action="Create" method="post" novalidate>
+                <form asp-action="Create" method="post" enctype="multipart/form-data" novalidate>
                     <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+
+                    @if (Model.AvailableTemplates.Count > 0)
+                    {
+                        <div class="mb-3">
+                            <label class="form-label" for="SelectedTemplateId">Şablondan Oluştur</label>
+                            <select asp-for="SelectedTemplateId" class="form-select" id="ticket-template-select">
+                                <option value="">Şablon seçmeden devam et</option>
+                                @foreach (var template in Model.AvailableTemplates)
+                                {
+                                    <option value="@template.Id"
+                                            data-title="@template.Title"
+                                            data-description="@template.Content"
+                                            data-priority="@template.Priority"
+                                            data-category="@template.Category">
+                                        @template.Title
+                                    </option>
+                                }
+                            </select>
+                        </div>
+                    }
 
                     <div class="mb-3">
                         <label asp-for="Title" class="form-label">Başlık</label>
-                        <input asp-for="Title" class="form-control" />
+                        <input asp-for="Title" class="form-control" id="ticket-title" />
                         <span asp-validation-for="Title" class="text-danger"></span>
                     </div>
 
                     <div class="mb-3">
                         <label asp-for="Description" class="form-label">Açıklama</label>
-                        <textarea asp-for="Description" rows="6" class="form-control"></textarea>
+                        <textarea asp-for="Description" rows="8" class="form-control" id="ticket-description"></textarea>
                         <span asp-validation-for="Description" class="text-danger"></span>
                     </div>
 
-                    <div class="row g-3 mb-3">
+                    <div class="row g-3 mb-4">
                         <div class="col-md-6">
                             <label asp-for="Priority" class="form-label">Öncelik</label>
-                            <select asp-for="Priority" asp-items="Html.GetEnumSelectList<TicketPriority>()" class="form-select"></select>
+                            <select asp-for="Priority" asp-items="Html.GetEnumSelectList<TicketPriority>()" class="form-select" id="ticket-priority"></select>
                         </div>
                         <div class="col-md-6">
                             <label asp-for="Category" class="form-label">Kategori</label>
-                            <select asp-for="Category" asp-items="Html.GetEnumSelectList<TicketCategory>()" class="form-select"></select>
+                            <select asp-for="Category" asp-items="Html.GetEnumSelectList<TicketCategory>()" class="form-select" id="ticket-category"></select>
                         </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label" for="ticket-files">Dosya Ekleri</label>
+                        <label class="dropzone" id="ticket-dropzone" for="ticket-files">
+                            <input id="ticket-files" name="files" type="file" class="d-none" multiple />
+                            <strong>Dosyaları buraya bırakın</strong>
+                            <span>veya seçmek için tıklayın. Maksimum 5 dosya, her biri 10 MB.</span>
+                        </label>
+                        <div class="small text-muted mt-2" id="ticket-file-list">Henüz dosya seçilmedi.</div>
                     </div>
 
                     <div class="d-flex gap-2">
@@ -46,6 +77,97 @@
     </div>
 </div>
 
+@section Styles {
+    <style>
+        .dropzone {
+            display: flex;
+            flex-direction: column;
+            gap: .4rem;
+            border: 2px dashed #8ca4ff;
+            border-radius: 1rem;
+            padding: 1.25rem;
+            background: linear-gradient(135deg, #f7f9ff, #eef3ff);
+            color: #204060;
+            cursor: pointer;
+            transition: transform .15s ease, border-color .15s ease, box-shadow .15s ease;
+        }
+
+        .dropzone.dragover {
+            border-color: #335cff;
+            box-shadow: 0 0 0 .25rem rgba(51, 92, 255, .12);
+            transform: translateY(-1px);
+        }
+    </style>
+}
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script>
+        (() => {
+            const templateSelect = document.getElementById("ticket-template-select");
+            const titleInput = document.getElementById("ticket-title");
+            const descriptionInput = document.getElementById("ticket-description");
+            const prioritySelect = document.getElementById("ticket-priority");
+            const categorySelect = document.getElementById("ticket-category");
+            const fileInput = document.getElementById("ticket-files");
+            const dropzone = document.getElementById("ticket-dropzone");
+            const fileList = document.getElementById("ticket-file-list");
+
+            const renderFiles = () => {
+                if (!fileInput.files || fileInput.files.length === 0) {
+                    fileList.textContent = "Henüz dosya seçilmedi.";
+                    return;
+                }
+
+                fileList.textContent = Array.from(fileInput.files).map(file => `${file.name} (${Math.ceil(file.size / 1024)} KB)`).join(", ");
+            };
+
+            if (templateSelect) {
+                templateSelect.addEventListener("change", () => {
+                    const selected = templateSelect.selectedOptions[0];
+                    if (!selected || !selected.dataset.title) {
+                        return;
+                    }
+
+                    if (!titleInput.value.trim()) {
+                        titleInput.value = selected.dataset.title;
+                    }
+
+                    if (!descriptionInput.value.trim()) {
+                        descriptionInput.value = selected.dataset.description || "";
+                    }
+
+                    prioritySelect.value = selected.dataset.priority || prioritySelect.value;
+                    categorySelect.value = selected.dataset.category || categorySelect.value;
+                });
+            }
+
+            ["dragenter", "dragover"].forEach(eventName => {
+                dropzone?.addEventListener(eventName, event => {
+                    event.preventDefault();
+                    dropzone.classList.add("dragover");
+                });
+            });
+
+            ["dragleave", "drop"].forEach(eventName => {
+                dropzone?.addEventListener(eventName, event => {
+                    event.preventDefault();
+                    dropzone.classList.remove("dragover");
+                });
+            });
+
+            dropzone?.addEventListener("drop", event => {
+                const droppedFiles = event.dataTransfer?.files;
+                if (!droppedFiles || droppedFiles.length === 0) {
+                    return;
+                }
+
+                fileInput.files = droppedFiles;
+                renderFiles();
+            });
+
+            fileInput?.addEventListener("change", renderFiles);
+            renderFiles();
+        })();
+    </script>
 }

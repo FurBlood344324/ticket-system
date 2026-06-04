@@ -6,11 +6,13 @@ using TicketSupport.Services;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllersWithViews();
+builder.Services.AddMemoryCache();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<PasswordHasher>();
 builder.Services.AddScoped<TicketQueryService>();
 builder.Services.AddScoped<IAppDataStore, PostgresAppDataStore>();
+builder.Services.AddScoped<FileAttachmentService>(); // Issue 2.3
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>

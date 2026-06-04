@@ -1,8 +1,7 @@
-@model SupportTicket
+@model TicketDetailsViewModel
 
 @{
-    ViewData["Title"] = "Talep Detayı";
-    var replyModel = ViewBag.ReplyModel as TicketReplyViewModel ?? new TicketReplyViewModel { Status = Model.Status };
+    ViewData["Title"] = $"Talep #{Model.Ticket.Id}";
 }
 
 @functions {
@@ -27,114 +26,413 @@
         TicketStatus.Cancelled => "text-bg-dark",
         _ => "text-bg-light"
     };
+
+    private static string PriorityText(TicketPriority priority) => priority switch
+    {
+        TicketPriority.Low => "Düşük",
+        TicketPriority.Medium => "Orta",
+        TicketPriority.High => "Yüksek",
+        TicketPriority.Critical => "Kritik",
+        _ => priority.ToString()
+    };
+
+    private static string PriorityClass(TicketPriority priority) => priority switch
+    {
+        TicketPriority.Low => "text-bg-success",
+        TicketPriority.Medium => "text-bg-secondary",
+        TicketPriority.High => "text-bg-warning",
+        TicketPriority.Critical => "text-bg-danger",
+        _ => "text-bg-light"
+    };
+
+    private static string CategoryText(TicketCategory category) => category switch
+    {
+        TicketCategory.Hardware => "Donanım",
+        TicketCategory.Software => "Yazılım",
+        TicketCategory.Network => "Ağ",
+        TicketCategory.Account => "Hesap",
+        TicketCategory.Email => "E-posta",
+        TicketCategory.Other => "Diğer",
+        _ => category.ToString()
+    };
+
+    private static string ActivityText(TicketActivityType activityType) => activityType switch
+    {
+        TicketActivityType.Work => "Çalışma",
+        TicketActivityType.Analysis => "Analiz",
+        TicketActivityType.Communication => "İletişim",
+        TicketActivityType.Travel => "Saha",
+        TicketActivityType.Waiting => "Bekleme",
+        TicketActivityType.Other => "Diğer",
+        _ => activityType.ToString()
+    };
+
+    private static string FormatMinutes(int minutes)
+    {
+        var hours = minutes / 60;
+        var remainingMinutes = minutes % 60;
+        return hours > 0 ? $"{hours} sa {remainingMinutes} dk" : $"{minutes} dk";
+    }
 }
 
-<div class="d-flex justify-content-between align-items-start gap-3 mb-4">
-    <div>
-        <h1 class="h3 mb-2">@Model.Title</h1>
-        <div class="text-muted">
-            @Model.CustomerName tarafından @Model.CreatedAt.ToString("dd.MM.yyyy HH:mm") tarihinde oluşturuldu.
-        </div>
-    </div>
-    <span class="badge @StatusClass(Model.Status) fs-6">@StatusText(Model.Status)</span>
-</div>
+<div class="ticket-detail-page"
+     data-ticket-id="@Model.Ticket.Id"
+     data-start-timer-url="@Url.Action("StartTimer", "Tickets", new { id = Model.Ticket.Id })"
+     data-stop-timer-url="@Url.Action("StopTimer", "Tickets", new { id = Model.Ticket.Id })"
+     data-update-status-url="@Url.Action("UpdateStatus", "Tickets", new { id = Model.Ticket.Id })">
+    <form id="ticket-detail-ajax-form" method="post">
+        @Html.AntiForgeryToken()
+    </form>
 
-<div class="row g-4">
-    <div class="col-lg-8">
-        <div class="card mb-4">
-            <div class="card-header fw-semibold">Talep açıklaması</div>
-            <div class="card-body">
-                <p class="mb-0 white-space-pre-line">@Model.Description</p>
+    <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-start gap-3 mb-4">
+        <div>
+            <div class="text-uppercase text-muted small fw-semibold mb-2">Talep #@Model.Ticket.Id</div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+                <h1 class="h2 mb-0">@Model.Ticket.Title</h1>
+                @if (Model.CanManageTicket)
+                {
+                    <button class="btn btn-sm btn-outline-dark" type="button" data-bs-toggle="collapse" data-bs-target="#ticket-edit-panel" aria-expanded="false" aria-controls="ticket-edit-panel">
+                        Düzenle
+                    </button>
+                }
+            </div>
+            <div class="text-muted mt-2">
+                @Model.Ticket.CustomerName tarafından @Model.Ticket.CreatedAt.ToString("dd.MM.yyyy HH:mm") tarihinde oluşturuldu.
             </div>
         </div>
+        <span id="ticket-status-badge" class="badge @StatusClass(Model.Ticket.Status) fs-6 px-3 py-2">@StatusText(Model.Ticket.Status)</span>
+    </div>
 
-        <h2 class="h5 mb-3">Cevaplar</h2>
-        @if (Model.Replies.Count == 0)
-        {
-            <div class="alert alert-info">Henüz cevap yazılmadı.</div>
-        }
-        else
-        {
-            foreach (var reply in Model.Replies.OrderBy(reply => reply.CreatedAt))
-            {
-                <div class="card mb-3">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between gap-3">
-                            <strong>@reply.AuthorName</strong>
-                            <span class="text-muted small">@reply.CreatedAt.ToString("dd.MM.yyyy HH:mm")</span>
+    @if (Model.CanManageTicket)
+    {
+        <div id="ticket-edit-panel" class="collapse mb-4">
+            <div class="card shadow-sm">
+                <div class="card-header fw-semibold">Talebi Düzenle</div>
+                <div class="card-body">
+                    <form asp-action="EditTicket" asp-route-id="@Model.Ticket.Id" method="post" class="row g-3">
+                        <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+                        <div class="col-12">
+                            <label class="form-label" for="edit-title">Başlık</label>
+                            <input id="edit-title" name="Title" value="@Model.EditForm.Title" class="form-control" />
                         </div>
-                        <div class="text-muted small mb-2">@reply.AuthorRole</div>
-                        <p class="mb-0">@reply.Message</p>
+                        <div class="col-12">
+                            <label class="form-label" for="edit-description">Açıklama</label>
+                            <textarea id="edit-description" name="Description" rows="5" class="form-control">@Model.EditForm.Description</textarea>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="edit-priority">Öncelik</label>
+                            <select id="edit-priority" name="Priority" class="form-select">
+                                @foreach (var priority in Enum.GetValues<TicketPriority>())
+                                {
+                                    <option value="@priority" selected="@(Model.EditForm.Priority == priority)">@PriorityText(priority)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="edit-category">Kategori</label>
+                            <select id="edit-category" name="Category" class="form-select">
+                                @foreach (var category in Enum.GetValues<TicketCategory>())
+                                {
+                                    <option value="@category" selected="@(Model.EditForm.Category == category)">@CategoryText(category)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-12 d-flex justify-content-end gap-2">
+                            <button type="button" class="btn btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#ticket-edit-panel">İptal</button>
+                            <button type="submit" class="btn btn-primary">Kaydet</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="row g-4">
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header fw-semibold">Açıklama</div>
+                <div class="card-body ticket-markdown">
+                    @Html.Raw(Model.DescriptionHtml)
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header fw-semibold">Zaman Çizelgesi</div>
+                <div class="card-body">
+                    @if (Model.TimelineItems.Count == 0)
+                    {
+                        <div class="alert alert-light border mb-0">Henüz etkinlik bulunmuyor.</div>
+                    }
+                    else
+                    {
+                        <div class="ticket-timeline">
+                            @foreach (var item in Model.TimelineItems)
+                            {
+                                if (item.IsReply && item.Reply is not null)
+                                {
+                                    <article class="timeline-item">
+                                        <div class="timeline-dot timeline-dot-reply"></div>
+                                        <div class="timeline-card">
+                                            <div class="d-flex flex-wrap justify-content-between gap-2">
+                                                <div>
+                                                    <div class="fw-semibold">@item.Reply.AuthorName</div>
+                                                    <div class="text-muted small">@item.Reply.AuthorRole</div>
+                                                </div>
+                                                <div class="text-muted small">@item.Reply.CreatedAt.ToString("dd.MM.yyyy HH:mm")</div>
+                                            </div>
+                                            <div class="d-flex flex-wrap gap-2 mt-2">
+                                                @if (item.Reply.IsInternal)
+                                                {
+                                                    <span class="badge text-bg-dark">Dahili Not</span>
+                                                }
+                                                @if (item.Reply.TimeSpentMinutes.GetValueOrDefault() > 0)
+                                                {
+                                                    var spentMinutes = item.Reply.TimeSpentMinutes.GetValueOrDefault();
+                                                    <span class="badge text-bg-light border">Harcanan süre: @FormatMinutes(spentMinutes)</span>
+                                                }
+                                            </div>
+                                            <div class="timeline-message mt-3">@item.Reply.Message</div>
+
+                                            @if (item.Reply.Attachments.Count > 0)
+                                            {
+                                                <div class="timeline-attachments mt-3">
+                                                    @foreach (var attachment in item.Reply.Attachments)
+                                                    {
+                                                        <a class="attachment-chip" asp-action="DownloadAttachment" asp-route-id="@attachment.Id">
+                                                            <span>@attachment.OriginalFileName</span>
+                                                            <small>@Math.Ceiling(attachment.FileSize / 1024d) KB</small>
+                                                        </a>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    </article>
+                                }
+                                else if (item.IsAudit && item.AuditEvent is not null)
+                                {
+                                    <article class="timeline-item">
+                                        <div class="timeline-dot timeline-dot-audit"></div>
+                                        <div class="timeline-card timeline-card-audit">
+                                            <div class="d-flex flex-wrap justify-content-between gap-2">
+                                                <div class="fw-semibold">@item.AuditEvent.Action</div>
+                                                <div class="text-muted small">@item.AuditEvent.CreatedAt.ToString("dd.MM.yyyy HH:mm")</div>
+                                            </div>
+                                            <div class="text-muted small mt-1">@item.AuditEvent.ActorName</div>
+                                            @if (!string.IsNullOrWhiteSpace(item.AuditEvent.OldValue) || !string.IsNullOrWhiteSpace(item.AuditEvent.NewValue))
+                                            {
+                                                <div class="timeline-audit-values mt-3">
+                                                    @if (!string.IsNullOrWhiteSpace(item.AuditEvent.OldValue))
+                                                    {
+                                                        <div><strong>Önce:</strong> @item.AuditEvent.OldValue</div>
+                                                    }
+                                                    @if (!string.IsNullOrWhiteSpace(item.AuditEvent.NewValue))
+                                                    {
+                                                        <div><strong>Sonra:</strong> @item.AuditEvent.NewValue</div>
+                                                    }
+                                                </div>
+                                            }
+                                        </div>
+                                    </article>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            @if (Model.Ticket.Status != TicketStatus.Closed || Model.CanManageTicket)
+            {
+                <div class="card shadow-sm">
+                    <div class="card-header fw-semibold">Yanıt Ekle</div>
+                    <div class="card-body">
+                        <form asp-action="Reply" asp-route-id="@Model.Ticket.Id" method="post" enctype="multipart/form-data" novalidate>
+                            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+                            <input type="hidden" name="Status" value="@Model.Ticket.Status" />
+
+                            <div class="mb-3">
+                                <label class="form-label" for="reply-message">Mesaj</label>
+                                <textarea id="reply-message" name="Message" rows="6" class="form-control">@Model.ReplyForm.Message</textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="reply-files">Dosya Ekle</label>
+                                <input id="reply-files" name="files" type="file" multiple class="form-control" />
+                                <div class="form-text">Maksimum 5 dosya, her biri en fazla 10 MB.</div>
+                            </div>
+
+                            @if (Model.CanManageTicket)
+                            {
+                                <div class="row g-3 mb-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label" for="reply-time">Harcanan Süre (dk)</label>
+                                        <input id="reply-time" name="TimeSpentMinutes" type="number" min="0" value="@Model.ReplyForm.TimeSpentMinutes" class="form-control" />
+                                    </div>
+                                    <div class="col-md-6 d-flex align-items-end">
+                                        <div class="form-check mb-2">
+                                            <input id="reply-internal" name="IsInternal" type="checkbox" class="form-check-input" checked="@Model.ReplyForm.IsInternal" />
+                                            <label class="form-check-label" for="reply-internal">Dahili not olarak işaretle</label>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+
+                            <div class="d-flex justify-content-end">
+                                <button type="submit" class="btn btn-primary">Yanıtı Kaydet</button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             }
-        }
-    </div>
-
-    <div class="col-lg-4">
-        <div class="card mb-4">
-            <div class="card-header fw-semibold">Talep bilgileri</div>
-            <div class="card-body">
-                <dl class="mb-0">
-                    <dt>Destek sorumlusu</dt>
-                    <dd>@(Model.AssignedSupportName ?? "Atanmadı")</dd>
-                    <dt>Durum</dt>
-                    <dd>@StatusText(Model.Status)</dd>
-                    <dt>Öncelik</dt>
-                    <dd>@Model.Priority</dd>
-                    <dt>Kategori</dt>
-                    <dd>@Model.Category</dd>
-                    <dt>Son güncelleme</dt>
-                    <dd>@Model.LastUpdatedAt.ToString("dd.MM.yyyy HH:mm")</dd>
-                </dl>
-
-                @if (User.IsInRole("Support") && Model.AssignedSupportId is null)
-                {
-                    <form asp-action="Assign" asp-route-id="@Model.Id" method="post" class="mt-3">
-                        <button type="submit" class="btn btn-outline-primary w-100">Talebi üstlen</button>
-                    </form>
-                }
-            </div>
         </div>
 
-        @if (Model.Status != TicketStatus.Closed || User.IsInRole("Support"))
-        {
-            <div class="card">
-                <div class="card-header fw-semibold">Cevap yaz</div>
+        <div class="col-lg-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header fw-semibold">Durum ve Sahiplik</div>
                 <div class="card-body">
-                    <form asp-action="Reply" asp-route-id="@Model.Id" method="post" novalidate>
-                        <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
-
-                        <div class="mb-3">
-                            <label for="Message" class="form-label">Mesaj</label>
-                            <textarea id="Message" name="Message" rows="5" class="form-control">@replyModel.Message</textarea>
-                        </div>
-
-                        @if (User.IsInRole("Support"))
-                        {
-                            <div class="mb-3">
-                                <label for="Status" class="form-label">Yeni durum</label>
-                                <select id="Status" name="Status" class="form-select">
+                    <div class="mb-3">
+                        <label class="form-label">Durum</label>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="badge @StatusClass(Model.Ticket.Status)">@StatusText(Model.Ticket.Status)</span>
+                            @if (Model.CanManageTicket)
+                            {
+                                <select id="ticket-status-select" class="form-select form-select-sm">
                                     @foreach (var status in Enum.GetValues<TicketStatus>())
                                     {
-                                        <option value="@status" selected="@(replyModel.Status == status)">@StatusText(status)</option>
+                                        <option value="@status" selected="@(Model.Ticket.Status == status)">@StatusText(status)</option>
+                                    }
+                                </select>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <span class="badge @PriorityClass(Model.Ticket.Priority)">@PriorityText(Model.Ticket.Priority)</span>
+                        <span class="badge text-bg-light border">@CategoryText(Model.Ticket.Category)</span>
+                    </div>
+
+                    <dl class="mb-0 detail-list">
+                        <dt>Atanan kişi</dt>
+                        <dd>@(Model.Ticket.AssignedSupportName ?? "Atanmamış")</dd>
+                        <dt>Departman</dt>
+                        <dd>@(Model.Ticket.Department?.Name ?? "Belirtilmedi")</dd>
+                        <dt>Son güncelleme</dt>
+                        <dd>@Model.Ticket.LastUpdatedAt.ToString("dd.MM.yyyy HH:mm")</dd>
+                    </dl>
+
+                    @if (Model.CanAssignToSelf)
+                    {
+                        <form asp-action="Assign" asp-route-id="@Model.Ticket.Id" method="post" class="mt-3">
+                            <button type="submit" class="btn btn-outline-primary w-100">Üstlen</button>
+                        </form>
+                    }
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header fw-semibold">SLA</div>
+                <div class="card-body">
+                    <div class="badge @Model.SlaClass mb-3">@Model.SlaSummary</div>
+                    <div class="text-muted small">@Model.ResponseSlaSummary</div>
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header fw-semibold">Dosya Ekleri</div>
+                <div class="card-body">
+                    @if (Model.VisibleAttachments.Count == 0)
+                    {
+                        <div class="text-muted small">Ek dosya bulunmuyor.</div>
+                    }
+                    else
+                    {
+                        <div class="d-grid gap-2">
+                            @foreach (var attachment in Model.VisibleAttachments)
+                            {
+                                <a class="attachment-chip attachment-chip-block" asp-action="DownloadAttachment" asp-route-id="@attachment.Id">
+                                    <span>@attachment.OriginalFileName</span>
+                                    <small>@attachment.UploadedByName · @attachment.CreatedAt.ToString("dd.MM.yyyy HH:mm")</small>
+                                </a>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <div class="card shadow-sm mb-4">
+                <div class="card-header fw-semibold">Zaman Takibi</div>
+                <div class="card-body">
+                    <div class="display-6 fw-semibold mb-2" id="tracked-time-total">@FormatMinutes(Model.TotalTrackedMinutes)</div>
+                    <div class="text-muted small mb-3">Toplam kayıtlı çalışma süresi</div>
+
+                    @if (Model.CanTrackTime)
+                    {
+                        <div id="timer-panel" data-started-at="@Model.ActiveTimerStartedAtUtc?.ToString("O")">
+                            <div class="alert alert-light border py-2 small mb-3" id="timer-state">
+                                @(Model.ActiveTimerStartedAtUtc.HasValue ? "Sayaç çalışıyor." : "Sayaç kapalı.")
+                            </div>
+                            <div class="d-flex gap-2 mb-3">
+                                <button id="start-timer-btn" type="button" class="btn btn-success flex-fill" @(Model.ActiveTimerStartedAtUtc.HasValue ? "hidden" : null)>Timer Başlat</button>
+                                <button id="stop-timer-btn" type="button" class="btn btn-outline-danger flex-fill" @(!Model.ActiveTimerStartedAtUtc.HasValue ? "hidden" : null)>Timer Durdur</button>
+                            </div>
+                            <div class="text-muted small" id="timer-elapsed"></div>
+                        </div>
+
+                        <hr />
+
+                        <form asp-action="AddTimeEntry" asp-route-id="@Model.Ticket.Id" method="post" class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label" for="time-minutes">Manuel Süre (dk)</label>
+                                <input id="time-minutes" name="Minutes" type="number" min="1" value="@Model.TimeEntryForm.Minutes" class="form-control" />
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label" for="time-activity">Aktivite</label>
+                                <select id="time-activity" name="ActivityType" class="form-select">
+                                    @foreach (var activityType in Enum.GetValues<TicketActivityType>())
+                                    {
+                                        <option value="@activityType" selected="@(Model.TimeEntryForm.ActivityType == activityType)">@ActivityText(activityType)</option>
                                     }
                                 </select>
                             </div>
-                        }
-                        else
-                        {
-                            <input type="hidden" name="Status" value="Open" />
-                        }
-
-                        <button type="submit" class="btn btn-primary w-100">Cevabı kaydet</button>
-                    </form>
+                            <div class="col-12">
+                                <label class="form-label" for="time-description">Açıklama</label>
+                                <textarea id="time-description" name="Description" rows="3" class="form-control">@Model.TimeEntryForm.Description</textarea>
+                            </div>
+                            <div class="col-12">
+                                <button type="submit" class="btn btn-outline-primary w-100">Zaman Girişi Ekle</button>
+                            </div>
+                        </form>
+                    }
                 </div>
             </div>
-        }
+
+            <div class="card shadow-sm">
+                <div class="card-header fw-semibold">Etiketler</div>
+                <div class="card-body">
+                    @if (Model.Ticket.Tags.Count == 0)
+                    {
+                        <div class="text-muted small">Etiket bulunmuyor.</div>
+                    }
+                    else
+                    {
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var relation in Model.Ticket.Tags.Where(tag => tag.Tag is not null))
+                            {
+                                <span class="badge" style="background-color:@relation.Tag!.Color;">@relation.Tag.Name</span>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
+@section Styles {
+    <link rel="stylesheet" href="~/css/ticket-detail.css" asp-append-version="true" />
+}
+
 @section Scripts {
     <partial name="_ValidationScriptsPartial" />
+    <script src="~/js/ticket-detail.js" asp-append-version="true"></script>
 }
