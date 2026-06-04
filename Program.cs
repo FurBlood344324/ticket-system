@@ -2,6 +2,7 @@ using System.Text.Json;
 using Asp.Versioning;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
@@ -10,6 +11,14 @@ using TicketSupport.Hubs;
 using TicketSupport.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    // Azure App Service reverse proxy'sine güven — KnownNetworks/KnownProxies temizlenirse
+    // tüm forward eden proxy'lere güvenilir (App Service'in internal proxy IP'leri dinamik)
+    options.KnownProxies.Clear();
+});
 
 builder.Services
     .AddControllers()
@@ -128,6 +137,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
+app.UseForwardedHeaders();
 app.UseHttpsRedirection();
 app.UseRouting();
 app.UseRateLimiter();
