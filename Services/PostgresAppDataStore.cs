@@ -10,11 +10,16 @@ public class PostgresAppDataStore : IAppDataStore
 {
     private readonly ApplicationDbContext dbContext;
     private readonly PasswordHasher passwordHasher;
+    private readonly TicketQueryService ticketQueryService;
 
-    public PostgresAppDataStore(ApplicationDbContext dbContext, PasswordHasher passwordHasher)
+    public PostgresAppDataStore(
+        ApplicationDbContext dbContext,
+        PasswordHasher passwordHasher,
+        TicketQueryService ticketQueryService)
     {
         this.dbContext = dbContext;
         this.passwordHasher = passwordHasher;
+        this.ticketQueryService = ticketQueryService;
     }
 
     public List<AppUser> GetUsers()
@@ -100,6 +105,64 @@ public class PostgresAppDataStore : IAppDataStore
             .ToList();
     }
 
+    public TicketFilterViewModel GetFilteredTickets(TicketFilterViewModel filter, AppUser currentUser)
+    {
+        var normalizedFilter = NormalizeFilter(filter);
+        int? forcedCustomerId = currentUser.Role == UserRole.Customer ? currentUser.Id : null;
+
+        var baseQuery = dbContext.Tickets
+            .AsNoTracking()
+            .AsQueryable();
+
+        baseQuery = ticketQueryService.ApplyFilters(baseQuery, normalizedFilter, forcedCustomerId);
+
+        normalizedFilter.TotalCount = baseQuery.Count();
+        normalizedFilter.TotalPages = normalizedFilter.TotalCount == 0
+            ? 0
+            : (int)Math.Ceiling(normalizedFilter.TotalCount / (double)normalizedFilter.PageSize);
+
+        if (normalizedFilter.TotalPages > 0 && normalizedFilter.Page > normalizedFilter.TotalPages)
+        {
+            normalizedFilter.Page = normalizedFilter.TotalPages;
+        }
+
+        normalizedFilter.Tickets = ticketQueryService
+            .ApplySorting(baseQuery, normalizedFilter.SortBy)
+            .Include(ticket => ticket.Department)
+            .Include(ticket => ticket.Tags)
+            .ThenInclude(relation => relation.Tag)
+            .Skip((normalizedFilter.Page - 1) * normalizedFilter.PageSize)
+            .Take(normalizedFilter.PageSize)
+            .ToList();
+
+        normalizedFilter.AvailableDepartments = dbContext.Departments
+            .AsNoTracking()
+            .Where(department => department.IsActive)
+            .OrderBy(department => department.Name)
+            .ToList();
+
+        normalizedFilter.AvailableTags = dbContext.TicketTags
+            .AsNoTracking()
+            .OrderBy(tag => tag.Name)
+            .ToList();
+
+        var activeUsers = dbContext.Users
+            .AsNoTracking()
+            .Include(user => user.Department)
+            .Where(user => user.IsActive)
+            .OrderBy(user => user.FullName)
+            .ToList();
+
+        normalizedFilter.AvailableAgents = activeUsers
+            .Where(user => user.Role is UserRole.Support or UserRole.Admin)
+            .ToList();
+        normalizedFilter.AvailableCustomers = activeUsers
+            .Where(user => user.Role == UserRole.Customer)
+            .ToList();
+
+        return normalizedFilter;
+    }
+
     public SupportTicket? FindTicket(int id)
     {
         return dbContext.Tickets
@@ -165,5 +228,33 @@ public class PostgresAppDataStore : IAppDataStore
         });
 
         dbContext.SaveChanges();
+    }
+
+    private static TicketFilterViewModel NormalizeFilter(TicketFilterViewModel filter)
+    {
+        var pageSizeOptions = new[] { 20, 50, 100 };
+        var normalizedPageSize = pageSizeOptions.Contains(filter.PageSize) ? filter.PageSize : 20;
+
+        return new TicketFilterViewModel
+        {
+            Search = string.IsNullOrWhiteSpace(filter.Search) ? null : filter.Search.Trim(),
+            Status = filter.Status,
+            Priority = filter.Priority,
+            Category = filter.Category,
+            DepartmentId = filter.DepartmentId,
+            TagIds = filter.TagIds.Where(tagId => tagId > 0).Distinct().ToList(),
+            AssignedToId = filter.AssignedToId,
+            CustomerId = filter.CustomerId,
+            FromDate = filter.FromDate,
+            ToDate = filter.ToDate,
+            DueDateFrom = filter.DueDateFrom,
+            DueDateTo = filter.DueDateTo,
+            IsOverdue = filter.IsOverdue,
+            IsUnassigned = filter.IsUnassigned,
+            SortBy = string.IsNullOrWhiteSpace(filter.SortBy) ? "newest" : filter.SortBy.Trim().ToLowerInvariant(),
+            Page = filter.Page < 1 ? 1 : filter.Page,
+            PageSize = normalizedPageSize,
+            PageSizeOptions = pageSizeOptions.ToList()
+        };
     }
 }

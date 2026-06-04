@@ -9,6 +9,7 @@ builder.Services.AddControllersWithViews();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<PasswordHasher>();
+builder.Services.AddScoped<TicketQueryService>();
 builder.Services.AddScoped<IAppDataStore, PostgresAppDataStore>();
 builder.Services
     .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)

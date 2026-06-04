@@ -10,6 +10,7 @@ public interface IAppDataStore
     bool IsPasswordValid(AppUser user, string password);
 
     List<SupportTicket> GetTickets();
+    TicketFilterViewModel GetFilteredTickets(TicketFilterViewModel filter, AppUser currentUser);
     SupportTicket? FindTicket(int id);
     SupportTicket AddTicket(CreateTicketViewModel model, AppUser customer);
     void AssignTicket(int ticketId, AppUser supportUser);

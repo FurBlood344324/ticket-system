@@ -1,10 +1,76 @@
-@model TicketListViewModel
+@using System.Globalization
+@model TicketFilterViewModel
 
 @{
     ViewData["Title"] = "Talepler";
+    var baseUrl = Url.Action("Index", "Tickets") ?? "/Tickets";
+    var visiblePages = GetVisiblePages(Model.Page, Model.TotalPages);
 }
 
 @functions {
+    private static string BuildQueryString(
+        TicketFilterViewModel model,
+        int? page = null,
+        string? removeKey = null,
+        string? removeValue = null)
+    {
+        var queryParts = new List<string>();
+
+        void Add(string key, string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                return;
+            }
+
+            if (removeKey == key && removeValue is null)
+            {
+                return;
+            }
+
+            if (removeKey == key && removeValue == value)
+            {
+                return;
+            }
+
+            queryParts.Add($"{Uri.EscapeDataString(key)}={Uri.EscapeDataString(value)}");
+        }
+
+        Add(nameof(TicketFilterViewModel.Search), model.Search);
+        Add(nameof(TicketFilterViewModel.Status), model.Status?.ToString());
+        Add(nameof(TicketFilterViewModel.Priority), model.Priority?.ToString());
+        Add(nameof(TicketFilterViewModel.Category), model.Category?.ToString());
+        Add(nameof(TicketFilterViewModel.DepartmentId), model.DepartmentId?.ToString(CultureInfo.InvariantCulture));
+
+        foreach (var tagId in model.TagIds.Distinct())
+        {
+            Add(nameof(TicketFilterViewModel.TagIds), tagId.ToString(CultureInfo.InvariantCulture));
+        }
+
+        Add(nameof(TicketFilterViewModel.AssignedToId), model.AssignedToId?.ToString(CultureInfo.InvariantCulture));
+        Add(nameof(TicketFilterViewModel.CustomerId), model.CustomerId?.ToString(CultureInfo.InvariantCulture));
+        Add(nameof(TicketFilterViewModel.FromDate), model.FromDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        Add(nameof(TicketFilterViewModel.ToDate), model.ToDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        Add(nameof(TicketFilterViewModel.DueDateFrom), model.DueDateFrom?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        Add(nameof(TicketFilterViewModel.DueDateTo), model.DueDateTo?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+
+        if (model.IsOverdue)
+        {
+            Add(nameof(TicketFilterViewModel.IsOverdue), bool.TrueString.ToLowerInvariant());
+        }
+
+        if (model.IsUnassigned)
+        {
+            Add(nameof(TicketFilterViewModel.IsUnassigned), bool.TrueString.ToLowerInvariant());
+        }
+
+        Add(nameof(TicketFilterViewModel.SortBy), model.SortBy);
+        Add(nameof(TicketFilterViewModel.PageSize), model.PageSize.ToString(CultureInfo.InvariantCulture));
+        Add(nameof(TicketFilterViewModel.Page), (page ?? model.Page).ToString(CultureInfo.InvariantCulture));
+
+        return queryParts.Count == 0 ? string.Empty : $"?{string.Join("&", queryParts)}";
+    }
+
     private static string StatusText(TicketStatus status) => status switch
     {
         TicketStatus.Open => "Açık",
@@ -14,6 +80,35 @@
         TicketStatus.WaitingCustomer => "Müşteri Bekleniyor",
         TicketStatus.Cancelled => "İptal",
         _ => status.ToString()
+    };
+
+    private static string PriorityText(TicketPriority priority) => priority switch
+    {
+        TicketPriority.Low => "Düşük",
+        TicketPriority.Medium => "Orta",
+        TicketPriority.High => "Yüksek",
+        TicketPriority.Critical => "Kritik",
+        _ => priority.ToString()
+    };
+
+    private static string PriorityClass(TicketPriority priority) => priority switch
+    {
+        TicketPriority.Low => "text-bg-secondary",
+        TicketPriority.Medium => "text-bg-primary",
+        TicketPriority.High => "text-bg-warning",
+        TicketPriority.Critical => "text-bg-danger",
+        _ => "text-bg-light"
+    };
+
+    private static string CategoryText(TicketCategory category) => category switch
+    {
+        TicketCategory.Hardware => "Donanım",
+        TicketCategory.Software => "Yazılım",
+        TicketCategory.Network => "Ağ",
+        TicketCategory.Account => "Hesap",
+        TicketCategory.Email => "E-posta",
+        TicketCategory.Other => "Diğer",
+        _ => category.ToString()
     };
 
     private static string StatusClass(TicketStatus status) => status switch
@@ -26,76 +121,475 @@
         TicketStatus.Cancelled => "text-bg-dark",
         _ => "text-bg-light"
     };
-}
 
-<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 mb-4">
-    <div>
-        <h1 class="h3 mb-1">Destek talepleri</h1>
-        <p class="text-muted mb-0">
-            @if (User.IsInRole("Support"))
-            {
-                <span>Tüm müşterilerden gelen talepler listelenir.</span>
-            }
-            else
-            {
-                <span>Sadece kendi oluşturduğunuz talepleri görürsünüz.</span>
-            }
-        </p>
-    </div>
-
-    @if (User.IsInRole("Customer"))
+    private static string SortText(string? sortBy) => sortBy switch
     {
-        <a class="btn btn-primary" asp-action="Create">Yeni talep oluştur</a>
+        "oldest" => "En eski",
+        "priority_desc" => "Öncelik azalan",
+        "priority_asc" => "Öncelik artan",
+        "due_date" => "Bitiş tarihi",
+        "last_updated" => "Son güncelleme",
+        _ => "En yeni"
+    };
+
+    private static string SlaText(SupportTicket ticket)
+    {
+        if (!ticket.DueDate.HasValue)
+        {
+            return "SLA tanımsız";
+        }
+
+        var remaining = ticket.DueDate.Value - DateTime.UtcNow;
+        if (remaining.TotalSeconds < 0)
+        {
+            return $"Gecikti ({Math.Abs(remaining.Days)}g)";
+        }
+
+        if (remaining.TotalHours < 24)
+        {
+            return $"Yaklaşıyor ({Math.Max(1, (int)Math.Ceiling(remaining.TotalHours))}sa)";
+        }
+
+        return $"{Math.Max(1, remaining.Days)} gün kaldı";
     }
-</div>
 
-<div class="btn-group mb-3" role="group" aria-label="Durum filtresi">
-    <a class="btn @(Model.StatusFilter is null ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-priority="@Model.PriorityFilter" asp-route-category="@Model.CategoryFilter" asp-route-tag="@Model.TagFilter">Tümü</a>
-    <a class="btn @(Model.StatusFilter == TicketStatus.Open ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="Open" asp-route-priority="@Model.PriorityFilter" asp-route-category="@Model.CategoryFilter" asp-route-tag="@Model.TagFilter">Açık</a>
-    <a class="btn @(Model.StatusFilter == TicketStatus.InProgress ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="InProgress" asp-route-priority="@Model.PriorityFilter" asp-route-category="@Model.CategoryFilter" asp-route-tag="@Model.TagFilter">İşlemde</a>
-    <a class="btn @(Model.StatusFilter == TicketStatus.WaitingCustomer ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="WaitingCustomer" asp-route-priority="@Model.PriorityFilter" asp-route-category="@Model.CategoryFilter" asp-route-tag="@Model.TagFilter">Müşteri Bekleniyor</a>
-    <a class="btn @(Model.StatusFilter == TicketStatus.Solved ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="Solved" asp-route-priority="@Model.PriorityFilter" asp-route-category="@Model.CategoryFilter" asp-route-tag="@Model.TagFilter">Çözüldü</a>
-    <a class="btn @(Model.StatusFilter == TicketStatus.Closed ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="Closed" asp-route-priority="@Model.PriorityFilter" asp-route-category="@Model.CategoryFilter" asp-route-tag="@Model.TagFilter">Kapandı</a>
-    <a class="btn @(Model.StatusFilter == TicketStatus.Cancelled ? "btn-primary" : "btn-outline-primary")" asp-action="Index" asp-route-status="Cancelled" asp-route-priority="@Model.PriorityFilter" asp-route-category="@Model.CategoryFilter" asp-route-tag="@Model.TagFilter">İptal</a>
-</div>
+    private static string SlaClass(SupportTicket ticket)
+    {
+        if (!ticket.DueDate.HasValue)
+        {
+            return "text-bg-secondary";
+        }
 
-@if (Model.Tickets.Count == 0)
-{
-    <div class="alert alert-info">Bu filtreye uygun destek talebi yok.</div>
+        var remaining = ticket.DueDate.Value - DateTime.UtcNow;
+        if (remaining.TotalSeconds < 0)
+        {
+            return "text-bg-danger";
+        }
+
+        if (remaining.TotalHours < 24)
+        {
+            return "text-bg-warning";
+        }
+
+        return "text-bg-success";
+    }
+
+    private static List<int> GetVisiblePages(int currentPage, int totalPages)
+    {
+        if (totalPages <= 0)
+        {
+            return [];
+        }
+
+        var start = Math.Max(1, currentPage - 2);
+        var end = Math.Min(totalPages, currentPage + 2);
+
+        if (currentPage <= 3)
+        {
+            end = Math.Min(totalPages, 5);
+        }
+
+        if (currentPage >= totalPages - 2)
+        {
+            start = Math.Max(1, totalPages - 4);
+        }
+
+        return Enumerable.Range(start, end - start + 1).ToList();
+    }
 }
-else
-{
-    <div class="table-responsive">
-        <table class="table table-hover align-middle">
-            <thead>
-                <tr>
-                    <th>Başlık</th>
-                    <th>Müşteri</th>
-                    <th>Destek</th>
-                    <th>Durum</th>
-                    <th>Öncelik</th>
-                    <th>Kategori</th>
-                    <th>Oluşturma</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var ticket in Model.Tickets)
+
+<section class="ticket-index-shell">
+    <div class="ticket-index-header d-flex flex-column flex-xl-row justify-content-between gap-3 mb-4">
+        <div>
+            <span class="ticket-eyebrow">Issue 2.1</span>
+            <h1 class="h3 mb-1">Gelişmiş destek talebi listesi</h1>
+            <p class="text-muted mb-0">
+                @if (User.IsInRole("Customer"))
                 {
-                    <tr>
-                        <td class="fw-semibold">@ticket.Title</td>
-                        <td>@ticket.CustomerName</td>
-                        <td>@(ticket.AssignedSupportName ?? "Atanmadı")</td>
-                        <td><span class="badge @StatusClass(ticket.Status)">@StatusText(ticket.Status)</span></td>
-                        <td>@ticket.Priority</td>
-                        <td>@ticket.Category</td>
-                        <td>@ticket.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
-                        <td class="text-end">
-                            <a class="btn btn-sm btn-outline-primary" asp-action="Details" asp-route-id="@ticket.Id">Detay</a>
-                        </td>
-                    </tr>
+                    <span>Kendi talepleriniz arasında arama yapabilir, filtreleyebilir ve sıralayabilirsiniz.</span>
                 }
-            </tbody>
-        </table>
+                else
+                {
+                    <span>Tüm ticket havuzunu çoklu filtre kombinasyonlarıyla yönetebilirsiniz.</span>
+                }
+            </p>
+        </div>
+
+        <div class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center">
+            @if (User.IsInRole("Customer"))
+            {
+                <a class="btn btn-primary" asp-action="Create">Yeni talep oluştur</a>
+            }
+            <div class="ticket-header-stat">
+                <span class="ticket-header-stat-label">Toplam sonuç</span>
+                <strong>@Model.TotalCount</strong>
+            </div>
+        </div>
     </div>
-}
+
+    <form method="get" asp-action="Index" class="ticket-filter-form">
+        <input type="hidden" name="Page" value="1" />
+
+        <div class="row g-3 align-items-end mb-3">
+            <div class="col-lg-7">
+                <label class="form-label fw-semibold" for="Search">Arama</label>
+                <div class="input-group input-group-lg">
+                    <span class="input-group-text bg-white">Ara</span>
+                    <input id="Search" name="Search" value="@Model.Search" class="form-control" placeholder="Başlık veya açıklama içinde ara" />
+                </div>
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                <label class="form-label fw-semibold" for="SortBy">Sıralama</label>
+                <select id="SortBy" name="SortBy" class="form-select">
+                    <option value="newest" selected="@(Model.SortBy == "newest" ? "selected" : null)">En yeni</option>
+                    <option value="oldest" selected="@(Model.SortBy == "oldest" ? "selected" : null)">En eski</option>
+                    <option value="priority_desc" selected="@(Model.SortBy == "priority_desc" ? "selected" : null)">Öncelik azalan</option>
+                    <option value="priority_asc" selected="@(Model.SortBy == "priority_asc" ? "selected" : null)">Öncelik artan</option>
+                    <option value="due_date" selected="@(Model.SortBy == "due_date" ? "selected" : null)">Bitiş tarihi</option>
+                    <option value="last_updated" selected="@(Model.SortBy == "last_updated" ? "selected" : null)">Son güncelleme</option>
+                </select>
+            </div>
+            <div class="col-sm-6 col-lg-2">
+                <label class="form-label fw-semibold" for="PageSize">Sayfa başına</label>
+                <select id="PageSize" name="PageSize" class="form-select">
+                    @foreach (var pageSize in Model.PageSizeOptions)
+                    {
+                        <option value="@pageSize" selected="@(Model.PageSize == pageSize ? "selected" : null)">@pageSize</option>
+                    }
+                </select>
+            </div>
+            <div class="col-lg-1 d-grid">
+                <button type="submit" class="btn btn-dark">Uygula</button>
+            </div>
+        </div>
+
+        <div class="accordion mb-3" id="ticketFilters">
+            <div class="accordion-item shadow-sm border-0">
+                <h2 class="accordion-header" id="advancedFiltersHeading">
+                    <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#advancedFilters" aria-expanded="true" aria-controls="advancedFilters">
+                        Gelişmiş filtreler
+                    </button>
+                </h2>
+                <div id="advancedFilters" class="accordion-collapse collapse show" aria-labelledby="advancedFiltersHeading" data-bs-parent="#ticketFilters">
+                    <div class="accordion-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label" for="Status">Durum</label>
+                                <select id="Status" name="Status" class="form-select">
+                                    <option value="">Tümü</option>
+                                    @foreach (TicketStatus value in Enum.GetValues(typeof(TicketStatus)))
+                                    {
+                                        <option value="@value" selected="@(Model.Status == value ? "selected" : null)">@StatusText(value)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="Priority">Öncelik</label>
+                                <select id="Priority" name="Priority" class="form-select">
+                                    <option value="">Tümü</option>
+                                    @foreach (TicketPriority value in Enum.GetValues(typeof(TicketPriority)))
+                                    {
+                                        <option value="@value" selected="@(Model.Priority == value ? "selected" : null)">@PriorityText(value)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="Category">Kategori</label>
+                                <select id="Category" name="Category" class="form-select">
+                                    <option value="">Tümü</option>
+                                    @foreach (TicketCategory value in Enum.GetValues(typeof(TicketCategory)))
+                                    {
+                                        <option value="@value" selected="@(Model.Category == value ? "selected" : null)">@CategoryText(value)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="DepartmentId">Departman</label>
+                                <select id="DepartmentId" name="DepartmentId" class="form-select">
+                                    <option value="">Tümü</option>
+                                    @foreach (var department in Model.AvailableDepartments)
+                                    {
+                                        <option value="@department.Id" selected="@(Model.DepartmentId == department.Id ? "selected" : null)">@department.Name</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="AssignedToId">Atanan</label>
+                                <select id="AssignedToId" name="AssignedToId" class="form-select">
+                                    <option value="">Tümü</option>
+                                    @foreach (var agent in Model.AvailableAgents)
+                                    {
+                                        <option value="@agent.Id" selected="@(Model.AssignedToId == agent.Id ? "selected" : null)">@agent.FullName</option>
+                                    }
+                                </select>
+                            </div>
+                            @if (!User.IsInRole("Customer"))
+                            {
+                                <div class="col-md-4">
+                                    <label class="form-label" for="CustomerId">Müşteri</label>
+                                    <select id="CustomerId" name="CustomerId" class="form-select">
+                                        <option value="">Tümü</option>
+                                        @foreach (var customer in Model.AvailableCustomers)
+                                        {
+                                            <option value="@customer.Id" selected="@(Model.CustomerId == customer.Id ? "selected" : null)">@customer.FullName</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+                            <div class="col-md-3">
+                                <label class="form-label" for="FromDate">Oluşturma başlangıç</label>
+                                <input id="FromDate" name="FromDate" type="date" class="form-control" value="@Model.FromDate?.ToString("yyyy-MM-dd")" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="ToDate">Oluşturma bitiş</label>
+                                <input id="ToDate" name="ToDate" type="date" class="form-control" value="@Model.ToDate?.ToString("yyyy-MM-dd")" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="DueDateFrom">SLA başlangıç</label>
+                                <input id="DueDateFrom" name="DueDateFrom" type="date" class="form-control" value="@Model.DueDateFrom?.ToString("yyyy-MM-dd")" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label" for="DueDateTo">SLA bitiş</label>
+                                <input id="DueDateTo" name="DueDateTo" type="date" class="form-control" value="@Model.DueDateTo?.ToString("yyyy-MM-dd")" />
+                            </div>
+                        </div>
+
+                        <div class="row g-4 mt-1">
+                            <div class="col-lg-7">
+                                <span class="form-label d-block mb-2">Etiketler</span>
+                                <div class="ticket-tag-grid">
+                                    @foreach (var tag in Model.AvailableTags)
+                                    {
+                                        <label class="ticket-tag-option">
+                                            <input class="form-check-input" type="checkbox" name="TagIds" value="@tag.Id" checked="@(Model.TagIds.Contains(tag.Id) ? "checked" : null)" />
+                                            <span class="ticket-tag-swatch" style="background-color:@tag.Color"></span>
+                                            <span>@tag.Name</span>
+                                        </label>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-lg-5">
+                                <span class="form-label d-block mb-2">Hızlı bayraklar</span>
+                                <div class="d-flex flex-column gap-2">
+                                    <label class="form-check ticket-check-tile">
+                                        <input class="form-check-input" type="checkbox" name="IsOverdue" value="true" checked="@(Model.IsOverdue ? "checked" : null)" />
+                                        <span class="form-check-label">SLA gecikenleri göster</span>
+                                    </label>
+                                    <label class="form-check ticket-check-tile">
+                                        <input class="form-check-input" type="checkbox" name="IsUnassigned" value="true" checked="@(Model.IsUnassigned ? "checked" : null)" />
+                                        <span class="form-check-label">Atanmamış kayıtları göster</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2 mt-4">
+                            <button type="submit" class="btn btn-primary">Filtreleri uygula</button>
+                            <a class="btn btn-outline-secondary" asp-action="Index">Filtreleri temizle</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </form>
+
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+        @if (!string.IsNullOrWhiteSpace(Model.Search))
+        {
+            <a class="badge rounded-pill text-bg-light text-decoration-none ticket-filter-badge" href="@(baseUrl + BuildQueryString(Model, page: 1, removeKey: nameof(TicketFilterViewModel.Search)))">
+                Arama: @Model.Search <span aria-hidden="true">&times;</span>
+            </a>
+        }
+        @if (Model.Status.HasValue)
+        {
+            <a class="badge rounded-pill text-bg-light text-decoration-none ticket-filter-badge" href="@(baseUrl + BuildQueryString(Model, page: 1, removeKey: nameof(TicketFilterViewModel.Status)))">
+                Durum: @StatusText(Model.Status.Value) <span aria-hidden="true">&times;</span>
+            </a>
+        }
+        @if (Model.Priority.HasValue)
+        {
+            <a class="badge rounded-pill text-bg-light text-decoration-none ticket-filter-badge" href="@(baseUrl + BuildQueryString(Model, page: 1, removeKey: nameof(TicketFilterViewModel.Priority)))">
+                Öncelik: @PriorityText(Model.Priority.Value) <span aria-hidden="true">&times;</span>
+            </a>
+        }
+        @if (Model.Category.HasValue)
+        {
+            <a class="badge rounded-pill text-bg-light text-decoration-none ticket-filter-badge" href="@(baseUrl + BuildQueryString(Model, page: 1, removeKey: nameof(TicketFilterViewModel.Category)))">
+                Kategori: @CategoryText(Model.Category.Value) <span aria-hidden="true">&times;</span>
+            </a>
+        }
+        @if (Model.DepartmentId.HasValue)
+        {
+            var department = Model.AvailableDepartments.FirstOrDefault(item => item.Id == Model.DepartmentId.Value);
+            <a class="badge rounded-pill text-bg-light text-decoration-none ticket-filter-badge" href="@(baseUrl + BuildQueryString(Model, page: 1, removeKey: nameof(TicketFilterViewModel.DepartmentId)))">
+                Departman: @(department?.Name ?? $"#{Model.DepartmentId}") <span aria-hidden="true">&times;</span>
+            </a>
+        }
+        @foreach (var tagId in Model.TagIds.Distinct())
+        {
+            var selectedTag = Model.AvailableTags.FirstOrDefault(item => item.Id == tagId);
+            <a class="badge rounded-pill text-bg-light text-decoration-none ticket-filter-badge" href="@(baseUrl + BuildQueryString(Model, page: 1, removeKey: nameof(TicketFilterViewModel.TagIds), removeValue: tagId.ToString(CultureInfo.InvariantCulture)))">
+                Etiket: @(selectedTag?.Name ?? $"#{tagId}") <span aria-hidden="true">&times;</span>
+            </a>
+        }
+        @if (Model.AssignedToId.HasValue)
+        {
+            var agent = Model.AvailableAgents.FirstOrDefault(item => item.Id == Model.AssignedToId.Value);
+            <a class="badge rounded-pill text-bg-light text-decoration-none ticket-filter-badge" href="@(baseUrl + BuildQueryString(Model, page: 1, removeKey: nameof(TicketFilterViewModel.AssignedToId)))">
+                Atanan: @(agent?.FullName ?? $"#{Model.AssignedToId}") <span aria-hidden="true">&times;</span>
+            </a>
+        }
+        @if (Model.CustomerId.HasValue && !User.IsInRole("Customer"))
+        {
+            var customer = Model.AvailableCustomers.FirstOrDefault(item => item.Id == Model.CustomerId.Value);
+            <a class="badge rounded-pill text-bg-light text-decoration-none ticket-filter-badge" href="@(baseUrl + BuildQueryString(Model, page: 1, removeKey: nameof(TicketFilterViewModel.CustomerId)))">
+                Müşteri: @(customer?.FullName ?? $"#{Model.CustomerId}") <span aria-hidden="true">&times;</span>
+            </a>
+        }
+        @if (Model.FromDate.HasValue || Model.ToDate.HasValue)
+        {
+            <a class="badge rounded-pill text-bg-light text-decoration-none ticket-filter-badge" href="@(baseUrl + BuildQueryString(Model, page: 1, removeKey: nameof(TicketFilterViewModel.FromDate)))">
+                Oluşturma başlangıç: @Model.FromDate?.ToString("dd.MM.yyyy") <span aria-hidden="true">&times;</span>
+            </a>
+        }
+        @if (Model.ToDate.HasValue)
+        {
+            <a class="badge rounded-pill text-bg-light text-decoration-none ticket-filter-badge" href="@(baseUrl + BuildQueryString(Model, page: 1, removeKey: nameof(TicketFilterViewModel.ToDate)))">
+                Oluşturma bitiş: @Model.ToDate?.ToString("dd.MM.yyyy") <span aria-hidden="true">&times;</span>
+            </a>
+        }
+        @if (Model.DueDateFrom.HasValue)
+        {
+            <a class="badge rounded-pill text-bg-light text-decoration-none ticket-filter-badge" href="@(baseUrl + BuildQueryString(Model, page: 1, removeKey: nameof(TicketFilterViewModel.DueDateFrom)))">
+                SLA başlangıç: @Model.DueDateFrom?.ToString("dd.MM.yyyy") <span aria-hidden="true">&times;</span>
+            </a>
+        }
+        @if (Model.DueDateTo.HasValue)
+        {
+            <a class="badge rounded-pill text-bg-light text-decoration-none ticket-filter-badge" href="@(baseUrl + BuildQueryString(Model, page: 1, removeKey: nameof(TicketFilterViewModel.DueDateTo)))">
+                SLA bitiş: @Model.DueDateTo?.ToString("dd.MM.yyyy") <span aria-hidden="true">&times;</span>
+            </a>
+        }
+        @if (Model.IsOverdue)
+        {
+            <a class="badge rounded-pill text-bg-light text-decoration-none ticket-filter-badge" href="@(baseUrl + BuildQueryString(Model, page: 1, removeKey: nameof(TicketFilterViewModel.IsOverdue)))">
+                Gecikenler <span aria-hidden="true">&times;</span>
+            </a>
+        }
+        @if (Model.IsUnassigned)
+        {
+            <a class="badge rounded-pill text-bg-light text-decoration-none ticket-filter-badge" href="@(baseUrl + BuildQueryString(Model, page: 1, removeKey: nameof(TicketFilterViewModel.IsUnassigned)))">
+                Atanmamışlar <span aria-hidden="true">&times;</span>
+            </a>
+        }
+        <span class="text-muted small ms-auto">Sıralama: @SortText(Model.SortBy)</span>
+    </div>
+
+    <div class="ticket-list-card card border-0 shadow-sm">
+        @if (Model.Tickets.Count == 0)
+        {
+            <div class="card-body py-5">
+                <div class="ticket-empty-state mx-auto text-center">
+                    <svg viewBox="0 0 120 120" class="ticket-empty-icon mb-3" aria-hidden="true">
+                        <circle cx="60" cy="60" r="52" fill="#f3f6fb"></circle>
+                        <path d="M38 45h44v8H38zm0 16h44v8H38zm0 16h28v8H38z" fill="#0d6efd"></path>
+                        <circle cx="82" cy="80" r="12" fill="#ffc107"></circle>
+                    </svg>
+                    <h2 class="h5">Filtrelere uygun ticket bulunamadı</h2>
+                    <p class="text-muted mb-4">Arama terimini sadeleştirin veya filtreleri temizleyerek kapsamı genişletin.</p>
+                    <a class="btn btn-outline-primary" asp-action="Index">Tüm kayıtları göster</a>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="card-body border-bottom d-flex flex-column flex-md-row justify-content-between gap-2">
+                <div>
+                    <strong>@Model.TotalCount</strong> kayıt bulundu
+                </div>
+                <div class="text-muted small">
+                    Sayfa @Model.Page / @Math.Max(Model.TotalPages, 1)
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ticket-checkbox-col"><input class="form-check-input" type="checkbox" disabled /></th>
+                            <th>ID</th>
+                            <th>Başlık</th>
+                            <th>Öncelik</th>
+                            <th>Kategori</th>
+                            <th>Durum</th>
+                            <th>Departman</th>
+                            <th>Müşteri</th>
+                            <th>Atanan</th>
+                            <th>SLA</th>
+                            <th>Oluşturma</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var ticket in Model.Tickets)
+                        {
+                            <tr>
+                                <td><input class="form-check-input" type="checkbox" /></td>
+                                <td class="text-muted">#@ticket.Id</td>
+                                <td>
+                                    <a class="fw-semibold text-decoration-none" asp-action="Details" asp-route-id="@ticket.Id">@ticket.Title</a>
+                                    <div class="text-muted small text-truncate ticket-description">@ticket.Description</div>
+                                </td>
+                                <td><span class="badge @PriorityClass(ticket.Priority)">@PriorityText(ticket.Priority)</span></td>
+                                <td>@CategoryText(ticket.Category)</td>
+                                <td><span class="badge @StatusClass(ticket.Status)">@StatusText(ticket.Status)</span></td>
+                                <td>@(ticket.Department?.Name ?? "-")</td>
+                                <td>@ticket.CustomerName</td>
+                                <td>@(ticket.AssignedSupportName ?? "Atanmadı")</td>
+                                <td><span class="badge @SlaClass(ticket)">@SlaText(ticket)</span></td>
+                                <td>@ticket.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (Model.TotalPages > 1)
+            {
+                <div class="card-footer bg-white d-flex flex-column flex-lg-row justify-content-between align-items-center gap-3">
+                    <nav aria-label="Ticket sayfalama">
+                        <ul class="pagination mb-0">
+                            <li class="page-item @(Model.Page == 1 ? "disabled" : null)">
+                                <a class="page-link" href="@(baseUrl + BuildQueryString(Model, page: Model.Page - 1))">Önceki</a>
+                            </li>
+                            @if (visiblePages.Count > 0 && visiblePages.First() > 1)
+                            {
+                                <li class="page-item"><a class="page-link" href="@(baseUrl + BuildQueryString(Model, page: 1))">1</a></li>
+                                @if (visiblePages.First() > 2)
+                                {
+                                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                                }
+                            }
+                            @foreach (var pageNumber in visiblePages)
+                            {
+                                <li class="page-item @(pageNumber == Model.Page ? "active" : null)">
+                                    <a class="page-link" href="@(baseUrl + BuildQueryString(Model, page: pageNumber))">@pageNumber</a>
+                                </li>
+                            }
+                            @if (visiblePages.Count > 0 && visiblePages.Last() < Model.TotalPages)
+                            {
+                                @if (visiblePages.Last() < Model.TotalPages - 1)
+                                {
+                                    <li class="page-item disabled"><span class="page-link">...</span></li>
+                                }
+                                <li class="page-item"><a class="page-link" href="@(baseUrl + BuildQueryString(Model, page: Model.TotalPages))">@Model.TotalPages</a></li>
+                            }
+                            <li class="page-item @(Model.Page == Model.TotalPages ? "disabled" : null)">
+                                <a class="page-link" href="@(baseUrl + BuildQueryString(Model, page: Model.Page + 1))">Sonraki</a>
+                            </li>
+                        </ul>
+                    </nav>
+                    <div class="text-muted small">URL, filtreleriniz ve sayfalama durumunuz korunur.</div>
+                </div>
+            }
+        }
+    </div>
+</section>

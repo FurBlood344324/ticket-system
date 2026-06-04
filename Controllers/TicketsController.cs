@@ -16,7 +16,7 @@ public class TicketsController : Controller
         this.dataStore = dataStore;
     }
 
-    public IActionResult Index(TicketStatus? status, TicketPriority? priority, TicketCategory? category, int? tag)
+    public IActionResult Index([FromQuery] TicketFilterViewModel filter)
     {
         var currentUser = GetCurrentUser();
         if (currentUser is null)
@@ -24,41 +24,7 @@ public class TicketsController : Controller
             return Challenge();
         }
 
-        var tickets = dataStore.GetTickets().AsQueryable();
-
-        if (currentUser.Role == UserRole.Customer)
-        {
-            tickets = tickets.Where(ticket => ticket.CustomerId == currentUser.Id);
-        }
-
-        if (status.HasValue)
-        {
-            tickets = tickets.Where(ticket => ticket.Status == status.Value);
-        }
-
-        if (priority.HasValue)
-        {
-            tickets = tickets.Where(ticket => ticket.Priority == priority.Value);
-        }
-
-        if (category.HasValue)
-        {
-            tickets = tickets.Where(ticket => ticket.Category == category.Value);
-        }
-
-        if (tag.HasValue)
-        {
-            tickets = tickets.Where(ticket => ticket.Tags.Any(relation => relation.TagId == tag.Value));
-        }
-
-        return View(new TicketListViewModel
-        {
-            StatusFilter = status,
-            PriorityFilter = priority,
-            CategoryFilter = category,
-            TagFilter = tag,
-            Tickets = tickets.ToList()
-        });
+        return View(dataStore.GetFilteredTickets(filter, currentUser));
     }
 
     public IActionResult Details(int id)
