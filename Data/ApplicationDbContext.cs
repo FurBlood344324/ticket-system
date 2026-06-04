@@ -18,6 +18,9 @@ public class ApplicationDbContext : DbContext
     public DbSet<SlaPolicy> SlaPolicies => Set<SlaPolicy>();
     public DbSet<CustomerOrganization> CustomerOrganizations => Set<CustomerOrganization>();
     public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
+    public DbSet<CannedResponse> CannedResponses => Set<CannedResponse>();
+    public DbSet<CustomerSatisfaction> CustomerSatisfactions => Set<CustomerSatisfaction>();
+    public DbSet<TicketAttachment> TicketAttachments => Set<TicketAttachment>();
 
     public override int SaveChanges()
     {
@@ -106,8 +109,16 @@ public class ApplicationDbContext : DbContext
                 .HasForeignKey(ticket => ticket.DepartmentId)
                 .IsRequired(false);
             entity.HasMany(ticket => ticket.Replies)
-                .WithOne()
+                .WithOne(reply => reply.Ticket)
                 .HasForeignKey(reply => reply.TicketId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(ticket => ticket.SatisfactionEntries)
+                .WithOne(satisfaction => satisfaction.Ticket)
+                .HasForeignKey(satisfaction => satisfaction.TicketId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(ticket => ticket.Attachments)
+                .WithOne(attachment => attachment.Ticket)
+                .HasForeignKey(attachment => attachment.TicketId)
                 .OnDelete(DeleteBehavior.Cascade);
             entity.HasMany(ticket => ticket.Tags)
                 .WithOne(relation => relation.Ticket)
@@ -120,6 +131,48 @@ public class ApplicationDbContext : DbContext
             entity.HasKey(reply => reply.Id);
             entity.Property(reply => reply.AuthorName).HasMaxLength(80).IsRequired();
             entity.Property(reply => reply.Message).HasMaxLength(1000).IsRequired();
+            entity.Property(reply => reply.IsInternal).HasDefaultValue(false);
+            entity.Property(reply => reply.IsAiSuggested).HasDefaultValue(false);
+            entity.HasOne(reply => reply.Template)
+                .WithMany(template => template.Replies)
+                .HasForeignKey(reply => reply.TemplateId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasMany(reply => reply.Attachments)
+                .WithOne(attachment => attachment.Reply)
+                .HasForeignKey(attachment => attachment.ReplyId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CannedResponse>(entity =>
+        {
+            entity.HasKey(response => response.Id);
+            entity.Property(response => response.Title).HasMaxLength(120).IsRequired();
+            entity.Property(response => response.Category).HasMaxLength(80).IsRequired();
+            entity.Property(response => response.Content).HasMaxLength(4000).IsRequired();
+            entity.Property(response => response.CreatedByName).HasMaxLength(80).IsRequired();
+            entity.Property(response => response.IsShared).HasDefaultValue(false);
+            entity.Property(response => response.UsageCount).HasDefaultValue(0);
+        });
+
+        modelBuilder.Entity<CustomerSatisfaction>(entity =>
+        {
+            entity.HasKey(satisfaction => satisfaction.Id);
+            entity.Property(satisfaction => satisfaction.Comment).HasMaxLength(1000);
+            entity.Property(satisfaction => satisfaction.Rating).IsRequired();
+            entity.Property(satisfaction => satisfaction.IsVisibleToCustomer).HasDefaultValue(true);
+            entity.ToTable(table => table.HasCheckConstraint("CK_CustomerSatisfaction_Rating", "\"Rating\" >= 1 AND \"Rating\" <= 5"));
+        });
+
+        modelBuilder.Entity<TicketAttachment>(entity =>
+        {
+            entity.HasKey(attachment => attachment.Id);
+            entity.Property(attachment => attachment.FileName).HasMaxLength(255).IsRequired();
+            entity.Property(attachment => attachment.OriginalFileName).HasMaxLength(255).IsRequired();
+            entity.Property(attachment => attachment.ContentType).HasMaxLength(120).IsRequired();
+            entity.Property(attachment => attachment.StoragePath).HasMaxLength(500).IsRequired();
+            entity.Property(attachment => attachment.UploadedByName).HasMaxLength(80).IsRequired();
         });
 
         modelBuilder.Entity<Department>(entity =>

@@ -8,5 +8,13 @@ public class TicketReply
     public string AuthorName { get; set; } = string.Empty;
     public UserRole AuthorRole { get; set; }
     public string Message { get; set; } = string.Empty;
+    public bool IsInternal { get; set; } = false;
+    public int? TemplateId { get; set; }
+    public int? TimeSpentMinutes { get; set; }
+    public bool IsAiSuggested { get; set; } = false;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    public CannedResponse? Template { get; set; }
+    public SupportTicket? Ticket { get; set; }
+    public List<TicketAttachment> Attachments { get; set; } = [];
 }

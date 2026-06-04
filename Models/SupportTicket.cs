@@ -22,6 +22,8 @@ public class SupportTicket
     public Department? Department { get; set; }
     public List<TicketTagRelation> Tags { get; set; } = [];
     public List<TicketReply> Replies { get; set; } = [];
+    public List<CustomerSatisfaction> SatisfactionEntries { get; set; } = [];
+    public List<TicketAttachment> Attachments { get; set; } = [];
     public bool IsOverdue => DueDate.HasValue
         && Status is not TicketStatus.Solved
         && Status is not TicketStatus.Closed
