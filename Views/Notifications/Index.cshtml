@@ -1,0 +1,97 @@
+@using TicketSupport.Models
+@model List<UserNotification>
+@{
+    ViewData["Title"] = "Bildirimler";
+    var unreadCount = ViewBag.UnreadCount as int? ?? 0;
+    var currentPage = ViewBag.CurrentPage as int? ?? 1;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="mb-0">🔔 Bildirimler</h2>
+    <div>
+        @if (unreadCount > 0)
+        {
+            <form asp-action="MarkAllRead" method="post" class="d-inline">
+                @Html.AntiForgeryToken()
+                <button type="submit" class="btn btn-outline-primary btn-sm">
+                    Tümünü Okundu İşaretle (@unreadCount)
+                </button>
+            </form>
+        }
+        <a href="@Url.Action("Index", new { page = currentPage - 1 })" class="btn btn-outline-secondary btn-sm @(currentPage <= 1 ? "disabled" : "")">&laquo; Önceki</a>
+        <a href="@Url.Action("Index", new { page = currentPage + 1 })" class="btn btn-outline-secondary btn-sm @(Model.Count < 20 ? "disabled" : "")">Sonraki &raquo;</a>
+    </div>
+</div>
+
+@if (Model.Count == 0)
+{
+    <div class="text-center py-5">
+        <div style="font-size:64px;">📭</div>
+        <h4 class="text-muted mt-3">Henüz bildirim yok</h4>
+        <p class="text-muted">Yeni bildirimleriniz burada görünecek.</p>
+    </div>
+}
+else
+{
+    <div class="list-group">
+        @foreach (var notification in Model)
+        {
+            <div class="list-group-item list-group-item-action @(notification.IsRead ? "" : "list-group-item-primary") border-0 border-bottom py-3">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center gap-2 mb-1">
+                            @if (!notification.IsRead)
+                            {
+                                <span class="badge bg-primary rounded-pill" style="width:8px;height:8px;min-width:8px;" title="Okunmamış">&nbsp;</span>
+                            }
+                            <strong class="@(notification.IsRead ? "text-body" : "")">@notification.Title</strong>
+                            <small class="text-muted ms-auto">@notification.CreatedAt.ToString("dd.MM.yyyy HH:mm")</small>
+                        </div>
+                        <p class="mb-2 text-muted" style="font-size:14px;">@notification.Message</p>
+                        <div class="d-flex gap-2">
+                            @if (!string.IsNullOrEmpty(notification.Url))
+                            {
+                                <a href="@notification.Url" class="btn btn-sm btn-outline-secondary">Görüntüle</a>
+                            }
+                            @if (!notification.IsRead)
+                            {
+                                <form asp-action="MarkRead" method="post" class="d-inline">
+                                    @Html.AntiForgeryToken()
+                                    <input type="hidden" name="id" value="@notification.Id" />
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">Okundu</button>
+                                </form>
+                            }
+                        </div>
+                    </div>
+                    <span class="badge @GetNotificationBadgeClass(notification.NotificationType) ms-2">@GetNotificationTypeLabel(notification.NotificationType)</span>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@functions {
+    private static string GetNotificationBadgeClass(NotificationType type) => type switch
+    {
+        NotificationType.TicketAssigned => "text-bg-info",
+        NotificationType.TicketUpdated => "text-bg-warning",
+        NotificationType.TicketReplied => "text-bg-success",
+        NotificationType.TicketResolved => "text-bg-success",
+        NotificationType.TicketClosed => "text-bg-secondary",
+        NotificationType.SlaBreach => "text-bg-danger",
+        NotificationType.KnowledgePublished => "text-bg-info",
+        _ => "text-bg-light"
+    };
+
+    private static string GetNotificationTypeLabel(NotificationType type) => type switch
+    {
+        NotificationType.TicketAssigned => "Atama",
+        NotificationType.TicketUpdated => "Güncelleme",
+        NotificationType.TicketReplied => "Yanıt",
+        NotificationType.TicketResolved => "Çözüldü",
+        NotificationType.TicketClosed => "Kapandı",
+        NotificationType.SlaBreach => "SLA İhlali",
+        NotificationType.KnowledgePublished => "Bilgi",
+        _ => "Sistem"
+    };
+}

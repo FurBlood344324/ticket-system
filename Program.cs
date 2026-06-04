@@ -26,6 +26,13 @@ builder.Services.AddScoped<TicketQueryService>();
 builder.Services.AddScoped<IAppDataStore, PostgresAppDataStore>();
 builder.Services.AddScoped<FileAttachmentService>();
 builder.Services.AddHttpContextAccessor();
+
+// Issue 2.5 — Email & Bildirim Altyapısı
+builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+builder.Services.AddScoped<EmailTemplateEngine>();
+builder.Services.AddScoped<NotificationService>();
+builder.Services.AddHostedService<DailyDigestService>();
+
 builder.Services
     .AddAuthentication(options =>
     {

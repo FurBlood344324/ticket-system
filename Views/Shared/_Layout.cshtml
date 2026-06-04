@@ -49,6 +49,15 @@
                     <ul class="navbar-nav">
                         @if (User.Identity?.IsAuthenticated == true)
                         {
+                            <!-- Issue 2.5: Notification bell -->
+                            <li class="nav-item me-2">
+                                <a class="nav-link position-relative" asp-controller="Notifications" asp-action="Index" title="Bildirimler">
+                                    🔔
+                                    <span id="notification-badge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="display:none;font-size:0.65rem;">
+                                        0
+                                    </span>
+                                </a>
+                            </li>
                             <li class="nav-item">
                                 <span class="nav-link text-muted">@User.Identity.Name</span>
                             </li>
@@ -90,6 +99,34 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+    <!-- Issue 2.5: Notification badge updater -->
+    <script>
+        (function() {
+            @if (User.Identity?.IsAuthenticated == true)
+            {
+                <text>
+                function updateNotificationBadge() {
+                    fetch('/Notifications/GetUnreadCount')
+                        .then(function(r) { return r.json(); })
+                        .then(function(data) {
+                            var badge = document.getElementById('notification-badge');
+                            if (badge) {
+                                if (data.count > 0) {
+                                    badge.textContent = data.count > 99 ? '99+' : data.count;
+                                    badge.style.display = '';
+                                } else {
+                                    badge.style.display = 'none';
+                                }
+                            }
+                        })
+                        .catch(function() { /* silent fail */ });
+                }
+                updateNotificationBadge();
+                setInterval(updateNotificationBadge, 60000); // refresh every 60s
+                </text>
+            }
+        })();
+    </script>
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

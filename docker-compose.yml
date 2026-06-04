@@ -11,5 +11,12 @@ services:
     volumes:
       - ticket_support_pgdata:/var/lib/postgresql/data
 
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: ticket_support_mailhog
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
 volumes:
   ticket_support_pgdata:
