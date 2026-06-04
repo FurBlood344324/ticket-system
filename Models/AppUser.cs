@@ -12,4 +12,6 @@ public class AppUser
     public string PasswordHash { get; set; } = string.Empty;
 
     public UserRole Role { get; set; }
+    public int? DepartmentId { get; set; }
+    public Department? Department { get; set; }
 }

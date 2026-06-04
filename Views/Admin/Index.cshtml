@@ -1,0 +1,31 @@
+@model List<TicketSupport.Models.AppUser>
+@{
+    ViewData["Title"] = "Yönetim Paneli";
+}
+
+<h2>Yönetim Paneli</h2>
+
+<h4 class="mt-4">Kullanıcılar</h4>
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>Id</th>
+            <th>Ad Soyad</th>
+            <th>E-posta</th>
+            <th>Rol</th>
+            <th>Departman</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var user in Model)
+        {
+            <tr>
+                <td>@user.Id</td>
+                <td>@user.FullName</td>
+                <td>@user.Email</td>
+                <td>@user.Role</td>
+                <td>@(user.Department?.Name ?? "-")</td>
+            </tr>
+        }
+    </tbody>
+</table>

@@ -89,7 +89,7 @@ public class TicketsController : Controller
     }
 
     [HttpPost]
-    [Authorize(Roles = nameof(UserRole.Support))]
+    [Authorize(Roles = $"{nameof(UserRole.Support)},{nameof(UserRole.Admin)}")]
     [ValidateAntiForgeryToken]
     public IActionResult Assign(int id)
     {
@@ -154,6 +154,6 @@ public class TicketsController : Controller
 
     private static bool CanSeeTicket(SupportTicket ticket, AppUser user)
     {
-        return user.Role == UserRole.Support || ticket.CustomerId == user.Id;
+        return user.Role == UserRole.Support || user.Role == UserRole.Admin || ticket.CustomerId == user.Id;
     }
 }

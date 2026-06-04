@@ -11,5 +11,7 @@ public class SupportTicket
     public string CustomerName { get; set; } = string.Empty;
     public int? AssignedSupportId { get; set; }
     public string? AssignedSupportName { get; set; }
+    public int? DepartmentId { get; set; }
+    public Department? Department { get; set; }
     public List<TicketReply> Replies { get; set; } = [];
 }

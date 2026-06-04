@@ -19,7 +19,7 @@ public class PostgresAppDataStore : IAppDataStore
 
     public List<AppUser> GetUsers()
     {
-        return dbContext.Users.AsNoTracking().ToList();
+        return dbContext.Users.AsNoTracking().Include(user => user.Department).ToList();
     }
 
     public AppUser? FindUserByEmail(string email)
