@@ -8,13 +8,16 @@ public class NotificationService
 {
     private readonly IServiceScopeFactory scopeFactory;
     private readonly ILogger<NotificationService> logger;
+    private readonly RealTimeNotificationService realTimeNotificationService;
 
     public NotificationService(
         IServiceScopeFactory scopeFactory,
-        ILogger<NotificationService> logger)
+        ILogger<NotificationService> logger,
+        RealTimeNotificationService realTimeNotificationService)
     {
         this.scopeFactory = scopeFactory;
         this.logger = logger;
+        this.realTimeNotificationService = realTimeNotificationService;
     }
 
     // ──────────────────────────────────────────────
@@ -27,7 +30,7 @@ public class NotificationService
         {
             try
             {
-                await NotifyTicketCreatedAsync(ticket);
+                await NotifyTicketCreatedCoreAsync(ticket);
             }
             catch (Exception ex)
             {
@@ -42,7 +45,7 @@ public class NotificationService
         {
             try
             {
-                await NotifyTicketAssignedAsync(ticket, assignee);
+                await NotifyTicketAssignedCoreAsync(ticket, assignee);
             }
             catch (Exception ex)
             {
@@ -57,7 +60,7 @@ public class NotificationService
         {
             try
             {
-                await NotifyNewReplyAsync(ticket, reply);
+                await NotifyNewReplyCoreAsync(ticket, reply);
             }
             catch (Exception ex)
             {
@@ -204,11 +207,117 @@ public class NotificationService
         }
     }
 
+    public async Task NotifyTicketCreatedAsync(SupportTicket ticket, AppUser actor)
+    {
+        await NotifyTicketCreatedCoreAsync(ticket);
+        await realTimeNotificationService.BroadcastTicketUpdatedAsync(ticket, "Yeni talep olusturuldu.");
+    }
+
+    public async Task NotifyTicketAssignedAsync(SupportTicket ticket, AppUser assignee)
+    {
+        await NotifyTicketAssignedCoreAsync(ticket, assignee);
+        await realTimeNotificationService.BroadcastTicketAssignedAsync(ticket);
+    }
+
+    public async Task NotifyNewReplyAsync(SupportTicket ticket, TicketReply reply)
+    {
+        await NotifyNewReplyCoreAsync(ticket, reply);
+        await realTimeNotificationService.BroadcastNewReplyAsync(ticket, reply);
+    }
+
+    public async Task NotifyStatusChangedAsync(SupportTicket ticket, TicketStatus oldStatus, TicketStatus newStatus, AppUser actor)
+    {
+        await NotifyStatusChangedAsync(ticket, oldStatus, newStatus);
+        await realTimeNotificationService.BroadcastStatusChangedAsync(ticket, oldStatus, newStatus);
+    }
+
+    public async Task NotifyTicketUpdatedAsync(SupportTicket ticket, AppUser actor)
+    {
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var ticketUrl = BuildTicketUrl(scope.ServiceProvider, ticket.Id);
+        var notifications = new List<UserNotification>();
+        var recipientIds = new HashSet<int> { ticket.CustomerId };
+
+        if (ticket.AssignedSupportId.HasValue)
+        {
+            recipientIds.Add(ticket.AssignedSupportId.Value);
+        }
+
+        recipientIds.Remove(actor.Id);
+
+        foreach (var user in await db.Users.Where(u => recipientIds.Contains(u.Id) && u.IsActive).ToListAsync())
+        {
+            var notification = new UserNotification
+            {
+                UserId = user.Id,
+                Title = "Talep Güncellendi",
+                Message = $"#{ticket.Id} - {ticket.Title} talebi guncellendi.",
+                Url = ticketUrl,
+                NotificationType = NotificationType.TicketUpdated
+            };
+
+            notifications.Add(notification);
+            db.UserNotifications.Add(notification);
+        }
+
+        await db.SaveChangesAsync();
+        await PublishNotificationsAsync(db, notifications);
+        await realTimeNotificationService.BroadcastTicketUpdatedAsync(ticket, "Talep bilgileri guncellendi.");
+    }
+
+    public async Task NotifySlaWarningAsync(SupportTicket ticket)
+    {
+        if (!ticket.DueDate.HasValue || ticket.Status is TicketStatus.Solved or TicketStatus.Closed or TicketStatus.Cancelled)
+        {
+            return;
+        }
+
+        var remaining = ticket.DueDate.Value - DateTime.UtcNow;
+        if (remaining > TimeSpan.FromHours(4))
+        {
+            return;
+        }
+
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var ticketUrl = BuildTicketUrl(scope.ServiceProvider, ticket.Id);
+        var notifications = new List<UserNotification>();
+
+        var recipients = ticket.AssignedSupportId.HasValue
+            ? await db.Users.Where(u => u.Id == ticket.AssignedSupportId.Value && u.IsActive).ToListAsync()
+            : await db.Users.Where(u => u.IsActive && (u.Role == UserRole.Support || u.Role == UserRole.Admin)).ToListAsync();
+
+        foreach (var user in recipients)
+        {
+            var notification = new UserNotification
+            {
+                UserId = user.Id,
+                Title = "SLA Uyarisi",
+                Message = $"#{ticket.Id} - {ticket.Title} talebi SLA sinirina yaklasti.",
+                Url = ticketUrl,
+                NotificationType = NotificationType.SlaBreach
+            };
+
+            notifications.Add(notification);
+            db.UserNotifications.Add(notification);
+        }
+
+        await db.SaveChangesAsync();
+        await PublishNotificationsAsync(db, notifications);
+        await realTimeNotificationService.SendSlaWarningAsync(
+            ticket,
+            recipients.Select(user => user.Id).ToArray(),
+            remaining < TimeSpan.Zero
+                ? $"SLA asildi. Gecikme: {FormatDuration(remaining.Duration())}"
+                : $"SLA riski. Kalan sure: {FormatDuration(remaining)}");
+    }
+
     // ──────────────────────────────────────────────
     // Private notification implementations
     // ──────────────────────────────────────────────
 
-    private async Task NotifyTicketCreatedAsync(SupportTicket ticket)
+    private async Task NotifyTicketCreatedCoreAsync(SupportTicket ticket)
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -224,17 +333,21 @@ public class NotificationService
                 && (u.Role == UserRole.Support || u.Role == UserRole.Admin))
             .ToListAsync();
 
+        var notifications = new List<UserNotification>();
+
         foreach (var agent in agents)
         {
-            // In-app notification
-            db.UserNotifications.Add(new UserNotification
+            var notification = new UserNotification
             {
                 UserId = agent.Id,
                 Title = "Yeni Destek Talebi",
                 Message = $"#{ticket.Id} - {ticket.Title} başlıklı yeni bir talep oluşturuldu.",
                 Url = ticketUrl,
                 NotificationType = NotificationType.TicketAssigned
-            });
+            };
+
+            notifications.Add(notification);
+            db.UserNotifications.Add(notification);
 
             // Email notification
             if (ShouldSendEmail(agent, "TicketCreated"))
@@ -261,9 +374,10 @@ public class NotificationService
         }
 
         await db.SaveChangesAsync();
+        await PublishNotificationsAsync(db, notifications);
     }
 
-    private async Task NotifyTicketAssignedAsync(SupportTicket ticket, AppUser assignee)
+    private async Task NotifyTicketAssignedCoreAsync(SupportTicket ticket, AppUser assignee)
     {
         using var scope = scopeFactory.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -273,17 +387,22 @@ public class NotificationService
         var baseUrl = templateEngine.GetBaseUrl();
         var ticketUrl = $"{baseUrl}/Tickets/Details/{ticket.Id}";
 
+        var notifications = new List<UserNotification>();
+
         // Notify the assignee
         if (assignee.IsActive && assignee.EmailNotificationsEnabled)
         {
-            db.UserNotifications.Add(new UserNotification
+            var notification = new UserNotification
             {
                 UserId = assignee.Id,
                 Title = "Talep Size Atandı",
                 Message = $"#{ticket.Id} - {ticket.Title} talebi size atandı.",
                 Url = ticketUrl,
                 NotificationType = NotificationType.TicketAssigned
-            });
+            };
+
+            notifications.Add(notification);
+            db.UserNotifications.Add(notification);
 
             if (ShouldSendEmail(assignee, "TicketAssigned"))
             {
@@ -312,14 +431,17 @@ public class NotificationService
         var customer = await db.Users.FirstOrDefaultAsync(u => u.Id == ticket.CustomerId);
         if (customer is not null && customer.IsActive && customer.EmailNotificationsEnabled)
         {
-            db.UserNotifications.Add(new UserNotification
+            var notification = new UserNotification
             {
                 UserId = customer.Id,
                 Title = "Talebiniz Atandı",
                 Message = $"#{ticket.Id} - Talebiniz {assignee.FullName} adlı kişiye atandı.",
                 Url = ticketUrl,
                 NotificationType = NotificationType.TicketAssigned
-            });
+            };
+
+            notifications.Add(notification);
+            db.UserNotifications.Add(notification);
 
             if (ShouldSendEmail(customer, "TicketAssigned"))
             {
@@ -346,9 +468,10 @@ public class NotificationService
         }
 
         await db.SaveChangesAsync();
+        await PublishNotificationsAsync(db, notifications);
     }
 
-    private async Task NotifyNewReplyAsync(SupportTicket ticket, TicketReply reply)
+    private async Task NotifyNewReplyCoreAsync(SupportTicket ticket, TicketReply reply)
     {
         if (reply.IsInternal)
         {
@@ -364,6 +487,7 @@ public class NotificationService
         var baseUrl = templateEngine.GetBaseUrl();
         var ticketUrl = $"{baseUrl}/Tickets/Details/{ticket.Id}";
         var replyExcerpt = reply.Message.Length > 150 ? reply.Message[..147] + "..." : reply.Message;
+        var notifications = new List<UserNotification>();
 
         // If reply is from support/agent, notify the customer
         if (reply.AuthorRole is UserRole.Support or UserRole.Admin)
@@ -371,14 +495,17 @@ public class NotificationService
             var customer = await db.Users.FirstOrDefaultAsync(u => u.Id == ticket.CustomerId);
             if (customer is not null && customer.IsActive && customer.EmailNotificationsEnabled)
             {
-                db.UserNotifications.Add(new UserNotification
+                var notification = new UserNotification
                 {
                     UserId = customer.Id,
                     Title = "Talebinize Yeni Yanıt",
                     Message = $"#{ticket.Id} - Talebinize {reply.AuthorName} tarafından yeni bir yanıt eklendi: \"{replyExcerpt}\"",
                     Url = ticketUrl,
                     NotificationType = NotificationType.TicketReplied
-                });
+                };
+
+                notifications.Add(notification);
+                db.UserNotifications.Add(notification);
 
                 if (ShouldSendEmail(customer, "NewReply"))
                 {
@@ -426,14 +553,17 @@ public class NotificationService
             {
                 if (!agent.EmailNotificationsEnabled) continue;
 
-                db.UserNotifications.Add(new UserNotification
+                var notification = new UserNotification
                 {
                     UserId = agent.Id,
                     Title = "Müşteri Yanıtı",
                     Message = $"#{ticket.Id} - {ticket.CustomerName} talebe yeni bir yanıt ekledi: \"{replyExcerpt}\"",
                     Url = ticketUrl,
                     NotificationType = NotificationType.TicketReplied
-                });
+                };
+
+                notifications.Add(notification);
+                db.UserNotifications.Add(notification);
 
                 if (ShouldSendEmail(agent, "NewReply"))
                 {
@@ -459,6 +589,7 @@ public class NotificationService
         }
 
         await db.SaveChangesAsync();
+        await PublishNotificationsAsync(db, notifications);
     }
 
     private async Task NotifyInternalNoteAsync(SupportTicket ticket, TicketReply reply)
@@ -474,22 +605,27 @@ public class NotificationService
         var noteExcerpt = reply.Message.Length > 150 ? reply.Message[..147] + "..." : reply.Message;
         var baseUrl = scope.ServiceProvider.GetRequiredService<IConfiguration>()
             .GetSection("Smtp")["BaseUrl"] ?? "https://localhost:5001";
+        var notifications = new List<UserNotification>();
 
         foreach (var agent in agents)
         {
             if (agent.Id == reply.AuthorId) continue; // Don't notify the author
 
-            db.UserNotifications.Add(new UserNotification
+            var notification = new UserNotification
             {
                 UserId = agent.Id,
                 Title = "Dahili Not Eklendi",
                 Message = $"#{ticket.Id} - {ticket.Title} talebine {reply.AuthorName} tarafından dahili not eklendi: \"{noteExcerpt}\"",
                 Url = $"{baseUrl.TrimEnd('/')}/Tickets/Details/{ticket.Id}",
                 NotificationType = NotificationType.TicketUpdated
-            });
+            };
+
+            notifications.Add(notification);
+            db.UserNotifications.Add(notification);
         }
 
         await db.SaveChangesAsync();
+        await PublishNotificationsAsync(db, notifications);
     }
 
     private async Task NotifyStatusChangedAsync(SupportTicket ticket, TicketStatus oldStatus, TicketStatus newStatus)
@@ -502,6 +638,7 @@ public class NotificationService
         var baseUrl = templateEngine.GetBaseUrl();
         var ticketUrl = $"{baseUrl}/Tickets/Details/{ticket.Id}";
         var statusText = GetStatusText(newStatus);
+        var notifications = new List<UserNotification>();
 
         // Notify the customer
         var customer = await db.Users.FirstOrDefaultAsync(u => u.Id == ticket.CustomerId);
@@ -514,14 +651,17 @@ public class NotificationService
                 _ => NotificationType.TicketUpdated
             };
 
-            db.UserNotifications.Add(new UserNotification
+            var notification = new UserNotification
             {
                 UserId = customer.Id,
                 Title = "Talep Durumu Güncellendi",
                 Message = $"#{ticket.Id} - Talebinizin durumu \"{statusText}\" olarak güncellendi.",
                 Url = ticketUrl,
                 NotificationType = notificationType
-            });
+            };
+
+            notifications.Add(notification);
+            db.UserNotifications.Add(notification);
 
             if (ShouldSendEmail(customer, "StatusChanged"))
             {
@@ -551,18 +691,22 @@ public class NotificationService
             var assignee = await db.Users.FirstOrDefaultAsync(u => u.Id == ticket.AssignedSupportId.Value);
             if (assignee is not null && assignee.IsActive && assignee.EmailNotificationsEnabled)
             {
-                db.UserNotifications.Add(new UserNotification
+                var notification = new UserNotification
                 {
                     UserId = assignee.Id,
                     Title = "Talep Durumu Değişti",
                     Message = $"#{ticket.Id} - {ticket.Title} talebinin durumu \"{statusText}\" olarak güncellendi.",
                     Url = ticketUrl,
                     NotificationType = NotificationType.TicketUpdated
-                });
+                };
+
+                notifications.Add(notification);
+                db.UserNotifications.Add(notification);
             }
         }
 
         await db.SaveChangesAsync();
+        await PublishNotificationsAsync(db, notifications);
     }
 
     private async Task NotifySlaBreachedAsync(SupportTicket ticket)
@@ -574,6 +718,7 @@ public class NotificationService
 
         var baseUrl = templateEngine.GetBaseUrl();
         var ticketUrl = $"{baseUrl}/Tickets/Details/{ticket.Id}";
+        var notifications = new List<UserNotification>();
 
         // Notify assigned support
         var assignee = ticket.AssignedSupportId.HasValue
@@ -603,14 +748,17 @@ public class NotificationService
         {
             if (!agent.EmailNotificationsEnabled) continue;
 
-            db.UserNotifications.Add(new UserNotification
+            var notification = new UserNotification
             {
                 UserId = agent.Id,
                 Title = "SLA İhlali!",
                 Message = $"#{ticket.Id} - {ticket.Title} talebi için SLA süresi aşıldı! Öncelik: {ticket.Priority}",
                 Url = ticketUrl,
                 NotificationType = NotificationType.SlaBreach
-            });
+            };
+
+            notifications.Add(notification);
+            db.UserNotifications.Add(notification);
 
             if (ShouldSendEmail(agent, "SlaWarning"))
             {
@@ -636,6 +784,7 @@ public class NotificationService
         }
 
         await db.SaveChangesAsync();
+        await PublishNotificationsAsync(db, notifications);
     }
 
     private async Task NotifyTicketOverdueAsync(SupportTicket ticket)
@@ -648,6 +797,7 @@ public class NotificationService
 
         var baseUrl = templateEngine.GetBaseUrl();
         var ticketUrl = $"{baseUrl}/Tickets/Details/{ticket.Id}";
+        var notifications = new List<UserNotification>();
 
         var assignee = ticket.AssignedSupportId.HasValue
             ? await db.Users.FirstOrDefaultAsync(u => u.Id == ticket.AssignedSupportId.Value)
@@ -655,14 +805,17 @@ public class NotificationService
 
         if (assignee is not null && assignee.IsActive && assignee.EmailNotificationsEnabled)
         {
-            db.UserNotifications.Add(new UserNotification
+            var notification = new UserNotification
             {
                 UserId = assignee.Id,
                 Title = "Talep Gecikti",
                 Message = $"#{ticket.Id} - {ticket.Title} talebi için son tarih aşıldı.",
                 Url = ticketUrl,
                 NotificationType = NotificationType.SlaBreach
-            });
+            };
+
+            notifications.Add(notification);
+            db.UserNotifications.Add(notification);
 
             if (ShouldSendEmail(assignee, "SlaWarning"))
             {
@@ -688,6 +841,7 @@ public class NotificationService
         }
 
         await db.SaveChangesAsync();
+        await PublishNotificationsAsync(db, notifications);
     }
 
     private async Task NotifySurveyRequestedAsync(SupportTicket ticket)
@@ -699,18 +853,22 @@ public class NotificationService
 
         var baseUrl = templateEngine.GetBaseUrl();
         var ticketUrl = $"{baseUrl}/Tickets/Details/{ticket.Id}";
+        var notifications = new List<UserNotification>();
 
         var customer = await db.Users.FirstOrDefaultAsync(u => u.Id == ticket.CustomerId);
         if (customer is not null && customer.IsActive && customer.EmailNotificationsEnabled)
         {
-            db.UserNotifications.Add(new UserNotification
+            var notification = new UserNotification
             {
                 UserId = customer.Id,
                 Title = "Memnuniyet Anketi",
                 Message = $"#{ticket.Id} - {ticket.Title} talebi için memnuniyet anketini doldurmak ister misiniz?",
                 Url = ticketUrl,
                 NotificationType = NotificationType.TicketResolved
-            });
+            };
+
+            notifications.Add(notification);
+            db.UserNotifications.Add(notification);
 
             if (ShouldSendEmail(customer, "SatisfactionSurvey"))
             {
@@ -733,6 +891,7 @@ public class NotificationService
         }
 
         await db.SaveChangesAsync();
+        await PublishNotificationsAsync(db, notifications);
     }
 
     private async Task NotifyMentionReceivedAsync(SupportTicket ticket, AppUser mentionedUser)
@@ -744,17 +903,21 @@ public class NotificationService
 
         var baseUrl = templateEngine.GetBaseUrl();
         var ticketUrl = $"{baseUrl}/Tickets/Details/{ticket.Id}";
+        var notifications = new List<UserNotification>();
 
         if (mentionedUser.IsActive && mentionedUser.EmailNotificationsEnabled)
         {
-            db.UserNotifications.Add(new UserNotification
+            var notification = new UserNotification
             {
                 UserId = mentionedUser.Id,
                 Title = "Bahsedildiniz",
                 Message = $"#{ticket.Id} - {ticket.Title} talebinde bahsedildiniz.",
                 Url = ticketUrl,
                 NotificationType = NotificationType.System
-            });
+            };
+
+            notifications.Add(notification);
+            db.UserNotifications.Add(notification);
 
             if (ShouldSendEmail(mentionedUser, "MentionNotification"))
             {
@@ -777,6 +940,8 @@ public class NotificationService
         }
 
         await db.SaveChangesAsync();
+        await PublishNotificationsAsync(db, notifications);
+        await realTimeNotificationService.SendMentionNotificationAsync(ticket, [mentionedUser.Id], $"#{ticket.Id} - {ticket.Title} talebinde bahsedildiniz.");
     }
 
     // ──────────────────────────────────────────────
@@ -803,4 +968,40 @@ public class NotificationService
         TicketStatus.Cancelled => "İptal",
         _ => status.ToString()
     };
+
+    private async Task PublishNotificationsAsync(ApplicationDbContext db, IEnumerable<UserNotification> notifications)
+    {
+        var notificationList = notifications.ToList();
+        if (notificationList.Count == 0)
+        {
+            return;
+        }
+
+        var userIds = notificationList.Select(notification => notification.UserId).Distinct().ToList();
+        var unreadCounts = await db.UserNotifications
+            .Where(item => !item.IsRead && userIds.Contains(item.UserId))
+            .GroupBy(item => item.UserId)
+            .Select(group => new { UserId = group.Key, Count = group.Count() })
+            .ToDictionaryAsync(item => item.UserId, item => item.Count);
+
+        foreach (var notification in notificationList)
+        {
+            unreadCounts.TryGetValue(notification.UserId, out var unreadCount);
+            await realTimeNotificationService.SendUserNotificationAsync(notification, unreadCount);
+        }
+    }
+
+    private static string BuildTicketUrl(IServiceProvider serviceProvider, int ticketId)
+    {
+        var baseUrl = serviceProvider.GetRequiredService<IConfiguration>()
+            .GetSection("Smtp")["BaseUrl"] ?? "https://localhost:5001";
+        return $"{baseUrl.TrimEnd('/')}/Tickets/Details/{ticketId}";
+    }
+
+    private static string FormatDuration(TimeSpan duration)
+    {
+        var totalHours = (int)duration.TotalHours;
+        var minutes = duration.Minutes;
+        return totalHours > 0 ? $"{totalHours} sa {minutes} dk" : $"{Math.Max(1, minutes)} dk";
+    }
 }

@@ -77,6 +77,7 @@
 
 <div class="ticket-detail-page"
      data-ticket-id="@Model.Ticket.Id"
+     data-details-url="@Url.Action("Details", "Tickets", new { id = Model.Ticket.Id })"
      data-start-timer-url="@Url.Action("StartTimer", "Tickets", new { id = Model.Ticket.Id })"
      data-stop-timer-url="@Url.Action("StopTimer", "Tickets", new { id = Model.Ticket.Id })"
      data-update-status-url="@Url.Action("UpdateStatus", "Tickets", new { id = Model.Ticket.Id })">
@@ -88,7 +89,7 @@
         <div>
             <div class="text-uppercase text-muted small fw-semibold mb-2">Talep #@Model.Ticket.Id</div>
             <div class="d-flex flex-wrap align-items-center gap-2">
-                <h1 class="h2 mb-0">@Model.Ticket.Title</h1>
+                <h1 id="ticket-live-title" class="h2 mb-0">@Model.Ticket.Title</h1>
                 @if (Model.CanManageTicket)
                 {
                     <button class="btn btn-sm btn-outline-dark" type="button" data-bs-toggle="collapse" data-bs-target="#ticket-edit-panel" aria-expanded="false" aria-controls="ticket-edit-panel">
@@ -96,7 +97,7 @@
                     </button>
                 }
             </div>
-            <div class="text-muted mt-2">
+            <div id="ticket-live-meta" class="text-muted mt-2">
                 @Model.Ticket.CustomerName tarafından @Model.Ticket.CreatedAt.ToString("dd.MM.yyyy HH:mm") tarihinde oluşturuldu.
             </div>
         </div>
@@ -152,14 +153,14 @@
         <div class="col-lg-8">
             <div class="card shadow-sm mb-4">
                 <div class="card-header fw-semibold">Açıklama</div>
-                <div class="card-body ticket-markdown">
+                <div id="ticket-live-description" class="card-body ticket-markdown">
                     @Html.Raw(Model.DescriptionHtml)
                 </div>
             </div>
 
             <div class="card shadow-sm mb-4">
                 <div class="card-header fw-semibold">Zaman Çizelgesi</div>
-                <div class="card-body">
+                <div id="ticket-live-timeline" class="card-body">
                     @if (Model.TimelineItems.Count == 0)
                     {
                         <div class="alert alert-light border mb-0">Henüz etkinlik bulunmuyor.</div>
@@ -289,11 +290,11 @@
         <div class="col-lg-4">
             <div class="card shadow-sm mb-4">
                 <div class="card-header fw-semibold">Durum ve Sahiplik</div>
-                <div class="card-body">
+                <div id="ticket-live-side-status" class="card-body">
                     <div class="mb-3">
                         <label class="form-label">Durum</label>
                         <div class="d-flex align-items-center gap-2">
-                            <span class="badge @StatusClass(Model.Ticket.Status)">@StatusText(Model.Ticket.Status)</span>
+                            <span id="ticket-side-status-badge" class="badge @StatusClass(Model.Ticket.Status)">@StatusText(Model.Ticket.Status)</span>
                             @if (Model.CanManageTicket)
                             {
                                 <select id="ticket-status-select" class="form-select form-select-sm">
@@ -331,7 +332,7 @@
 
             <div class="card shadow-sm mb-4">
                 <div class="card-header fw-semibold">SLA</div>
-                <div class="card-body">
+                <div id="ticket-live-sla" class="card-body">
                     <div class="badge @Model.SlaClass mb-3">@Model.SlaSummary</div>
                     <div class="text-muted small">@Model.ResponseSlaSummary</div>
                 </div>
@@ -339,7 +340,7 @@
 
             <div class="card shadow-sm mb-4">
                 <div class="card-header fw-semibold">Dosya Ekleri</div>
-                <div class="card-body">
+                <div id="ticket-live-attachments" class="card-body">
                     @if (Model.VisibleAttachments.Count == 0)
                     {
                         <div class="text-muted small">Ek dosya bulunmuyor.</div>

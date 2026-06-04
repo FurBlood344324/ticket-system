@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.OpenApi;
 using TicketSupport.Data;
+using TicketSupport.Hubs;
 using TicketSupport.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,12 +20,15 @@ builder.Services
     });
 builder.Services.AddControllersWithViews();
 builder.Services.AddMemoryCache();
+builder.Services.AddSignalR();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddScoped<PasswordHasher>();
 builder.Services.AddScoped<TicketQueryService>();
 builder.Services.AddScoped<IAppDataStore, PostgresAppDataStore>();
 builder.Services.AddScoped<FileAttachmentService>();
+builder.Services.AddScoped<RealTimeNotificationService>();
+builder.Services.AddScoped<NotificationService>();
 builder.Services.AddHttpContextAccessor();
 
 // Issue 2.5 — Email & Bildirim Altyapısı
@@ -142,6 +146,8 @@ app.MapControllerRoute(
     .WithStaticAssets();
 
 app.MapControllers();
+app.MapHub<TicketHub>("/hubs/tickets"); // Issue 2.9
+app.MapHub<NotificationHub>("/hubs/notifications"); // Issue 2.9
 
 
 app.Run();

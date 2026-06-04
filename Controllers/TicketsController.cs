@@ -15,15 +15,18 @@ public class TicketsController : Controller
     private readonly IAppDataStore dataStore;
     private readonly FileAttachmentService fileAttachmentService;
     private readonly IMemoryCache memoryCache;
+    private readonly NotificationService notificationService;
 
     public TicketsController(
         IAppDataStore dataStore,
         FileAttachmentService fileAttachmentService,
-        IMemoryCache memoryCache)
+        IMemoryCache memoryCache,
+        NotificationService notificationService)
     {
         this.dataStore = dataStore;
         this.fileAttachmentService = fileAttachmentService;
         this.memoryCache = memoryCache;
+        this.notificationService = notificationService;
     }
 
     public IActionResult Index([FromQuery] TicketFilterViewModel filter)
@@ -96,6 +99,8 @@ public class TicketsController : Controller
         try
         {
             var ticket = dataStore.AddTicket(model, currentUser, attachments);
+            await notificationService.NotifyTicketCreatedAsync(ticket, currentUser);
+            await notificationService.NotifySlaWarningAsync(ticket);
             TempData["Message"] = "Destek talebiniz oluşturuldu.";
             return RedirectToAction(nameof(Details), new { id = ticket.Id });
         }
@@ -113,7 +118,7 @@ public class TicketsController : Controller
     [HttpPost]
     [Authorize(Roles = $"{nameof(UserRole.Support)},{nameof(UserRole.Admin)}")]
     [ValidateAntiForgeryToken]
-    public IActionResult Assign(int id)
+    public async Task<IActionResult> Assign(int id)
     {
         var currentUser = GetCurrentUser();
         if (currentUser is null)
@@ -122,6 +127,13 @@ public class TicketsController : Controller
         }
 
         dataStore.AssignTicket(id, currentUser);
+        var updatedTicket = dataStore.FindTicket(id);
+        if (updatedTicket is not null)
+        {
+            await notificationService.NotifyTicketAssignedAsync(updatedTicket, currentUser);
+            await notificationService.NotifySlaWarningAsync(updatedTicket);
+        }
+
         TempData["Message"] = "Talep üzerinize alındı.";
         return RedirectToAction(nameof(Details), new { id });
     }
@@ -172,7 +184,21 @@ public class TicketsController : Controller
 
         try
         {
+            var previousStatus = ticket.Status;
             dataStore.AddReply(id, model, currentUser, attachments);
+            var updatedTicket = dataStore.FindTicketDetails(id);
+            var latestReply = updatedTicket?.Replies.OrderByDescending(reply => reply.CreatedAt).FirstOrDefault();
+            if (updatedTicket is not null && latestReply is not null)
+            {
+                await notificationService.NotifyNewReplyAsync(updatedTicket, latestReply);
+                if (previousStatus != updatedTicket.Status)
+                {
+                    await notificationService.NotifyStatusChangedAsync(updatedTicket, previousStatus, updatedTicket.Status, currentUser);
+                }
+
+                await notificationService.NotifySlaWarningAsync(updatedTicket);
+            }
+
             TempData["Message"] = "Cevabınız kaydedildi.";
             return RedirectToAction(nameof(Details), new { id });
         }
@@ -217,7 +243,7 @@ public class TicketsController : Controller
     [HttpPost]
     [Authorize(Roles = $"{nameof(UserRole.Support)},{nameof(UserRole.Admin)}")]
     [ValidateAntiForgeryToken]
-    public IActionResult EditTicket(int id, TicketEditViewModel model)
+    public async Task<IActionResult> EditTicket(int id, TicketEditViewModel model)
     {
         var currentUser = GetCurrentUser();
         var ticket = dataStore.FindTicketDetails(id);
@@ -237,6 +263,13 @@ public class TicketsController : Controller
         }
 
         dataStore.UpdateTicket(id, model, currentUser);
+        var updatedTicket = dataStore.FindTicket(id);
+        if (updatedTicket is not null)
+        {
+            await notificationService.NotifyTicketUpdatedAsync(updatedTicket, currentUser);
+            await notificationService.NotifySlaWarningAsync(updatedTicket);
+        }
+
         TempData["Message"] = "Talep bilgileri güncellendi.";
         return RedirectToAction(nameof(Details), new { id });
     }
@@ -244,7 +277,7 @@ public class TicketsController : Controller
     [HttpPost]
     [Authorize(Roles = $"{nameof(UserRole.Support)},{nameof(UserRole.Admin)}")]
     [ValidateAntiForgeryToken]
-    public IActionResult UpdateStatus(int id, TicketStatus status)
+    public async Task<IActionResult> UpdateStatus(int id, TicketStatus status)
     {
         var currentUser = GetCurrentUser();
         var ticket = dataStore.FindTicketDetails(id);
@@ -258,7 +291,15 @@ public class TicketsController : Controller
             return Forbid();
         }
 
+        var previousStatus = ticket.Status;
         dataStore.UpdateStatus(id, status, currentUser);
+        var updatedTicket = dataStore.FindTicket(id);
+        if (updatedTicket is not null && previousStatus != status)
+        {
+            await notificationService.NotifyStatusChangedAsync(updatedTicket, previousStatus, status, currentUser);
+            await notificationService.NotifySlaWarningAsync(updatedTicket);
+        }
+
         return Json(new
         {
             ok = true,
