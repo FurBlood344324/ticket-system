@@ -24,6 +24,8 @@ public class SupportTicket
     public List<TicketReply> Replies { get; set; } = [];
     public List<CustomerSatisfaction> SatisfactionEntries { get; set; } = [];
     public List<TicketAttachment> Attachments { get; set; } = [];
+    public List<TicketTimeEntry> TimeEntries { get; set; } = [];
+    public List<TicketAuditEvent> AuditEvents { get; set; } = [];
     public bool IsOverdue => DueDate.HasValue
         && Status is not TicketStatus.Solved
         && Status is not TicketStatus.Closed

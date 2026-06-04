@@ -21,16 +21,26 @@ public class ApplicationDbContext : DbContext
     public DbSet<CannedResponse> CannedResponses => Set<CannedResponse>();
     public DbSet<CustomerSatisfaction> CustomerSatisfactions => Set<CustomerSatisfaction>();
     public DbSet<TicketAttachment> TicketAttachments => Set<TicketAttachment>();
+    public DbSet<TicketAuditEvent> TicketAuditEvents => Set<TicketAuditEvent>();
+    public DbSet<KnowledgeArticle> KnowledgeArticles => Set<KnowledgeArticle>();
+    public DbSet<KnowledgeCategory> KnowledgeCategories => Set<KnowledgeCategory>();
+    public DbSet<RelatedArticle> RelatedArticles => Set<RelatedArticle>();
+    public DbSet<TicketTemplate> TicketTemplates => Set<TicketTemplate>();
+    public DbSet<WebhookSubscription> WebhookSubscriptions => Set<WebhookSubscription>();
+    public DbSet<TicketTimeEntry> TicketTimeEntries => Set<TicketTimeEntry>();
+    public DbSet<UserNotification> UserNotifications => Set<UserNotification>();
+    public DbSet<RecurringTicket> RecurringTickets => Set<RecurringTicket>();
+    public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
 
     public override int SaveChanges()
     {
-        UpdateTicketAuditFields();
+        UpdateAuditFields();
         return base.SaveChanges();
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
     {
-        UpdateTicketAuditFields();
+        UpdateAuditFields();
         return base.SaveChangesAsync(cancellationToken);
     }
 
@@ -124,6 +134,14 @@ public class ApplicationDbContext : DbContext
                 .WithOne(relation => relation.Ticket)
                 .HasForeignKey(relation => relation.TicketId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(ticket => ticket.TimeEntries)
+                .WithOne()
+                .HasForeignKey(entry => entry.TicketId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(ticket => ticket.AuditEvents)
+                .WithOne()
+                .HasForeignKey(audit => audit.TicketId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<TicketReply>(entity =>
@@ -211,9 +229,156 @@ public class ApplicationDbContext : DbContext
             entity.Property(policy => policy.ResolutionTimeMinutes).IsRequired();
             entity.Property(policy => policy.BusinessHoursOnly).IsRequired();
         });
+
+        // ──────────────────────────────────────────────
+        // YENİ ENTITY KONFİGÜRASYONLARI
+        // ──────────────────────────────────────────────
+
+        modelBuilder.Entity<TicketAuditEvent>(entity =>
+        {
+            entity.HasKey(audit => audit.Id);
+            entity.Property(audit => audit.ActorName).HasMaxLength(80).IsRequired();
+            entity.Property(audit => audit.Action).HasMaxLength(100).IsRequired();
+            entity.Property(audit => audit.IpAddress).HasMaxLength(45);
+            entity.HasIndex(audit => audit.TicketId);
+            entity.HasIndex(audit => audit.CreatedAt);
+            entity.HasIndex(audit => audit.ActorId);
+        });
+
+        modelBuilder.Entity<KnowledgeCategory>(entity =>
+        {
+            entity.HasKey(cat => cat.Id);
+            entity.Property(cat => cat.Name).HasMaxLength(100).IsRequired();
+            entity.Property(cat => cat.Description).HasMaxLength(300);
+            entity.Property(cat => cat.SortOrder).HasDefaultValue(0);
+            entity.Property(cat => cat.IsActive).HasDefaultValue(true);
+            entity.HasIndex(cat => cat.Name).IsUnique();
+        });
+
+        modelBuilder.Entity<KnowledgeArticle>(entity =>
+        {
+            entity.HasKey(article => article.Id);
+            entity.Property(article => article.Title).HasMaxLength(200).IsRequired();
+            entity.Property(article => article.Slug).HasMaxLength(200).IsRequired();
+            entity.Property(article => article.Content).HasMaxLength(5000).IsRequired();
+            entity.Property(article => article.AuthorName).HasMaxLength(80).IsRequired();
+            entity.Property(article => article.MetaKeywords).HasMaxLength(300);
+            entity.Property(article => article.MetaDescription).HasMaxLength(300);
+            entity.Property(article => article.IsPublished).HasDefaultValue(false);
+            entity.Property(article => article.ViewCount).HasDefaultValue(0);
+            entity.Property(article => article.HelpfulCount).HasDefaultValue(0);
+            entity.Property(article => article.NotHelpfulCount).HasDefaultValue(0);
+            entity.HasIndex(article => article.Slug).IsUnique();
+            entity.HasIndex(article => article.CreatedAt);
+            entity.HasIndex(article => article.ViewCount);
+            entity.HasOne(article => article.Category)
+                .WithMany(cat => cat.Articles)
+                .HasForeignKey(article => article.KnowledgeCategoryId)
+                .IsRequired(false)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<RelatedArticle>(entity =>
+        {
+            entity.HasKey(relation => new { relation.ArticleId, relation.RelatedArticleId });
+            entity.HasOne(relation => relation.Article)
+                .WithMany()
+                .HasForeignKey(relation => relation.ArticleId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(relation => relation.Related)
+                .WithMany()
+                .HasForeignKey(relation => relation.RelatedArticleId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<TicketTemplate>(entity =>
+        {
+            entity.HasKey(template => template.Id);
+            entity.Property(template => template.Title).HasMaxLength(150).IsRequired();
+            entity.Property(template => template.Description).HasMaxLength(500);
+            entity.Property(template => template.Content).HasMaxLength(5000).IsRequired();
+            entity.Property(template => template.CreatedByName).HasMaxLength(80).IsRequired();
+            entity.Property(template => template.IsActive).HasDefaultValue(true);
+            entity.Property(template => template.UsageCount).HasDefaultValue(0);
+            entity.HasIndex(template => template.Category);
+            entity.HasIndex(template => template.IsActive);
+            entity.HasOne(template => template.Department)
+                .WithMany()
+                .HasForeignKey(template => template.DepartmentId)
+                .IsRequired(false);
+        });
+
+        modelBuilder.Entity<WebhookSubscription>(entity =>
+        {
+            entity.HasKey(webhook => webhook.Id);
+            entity.Property(webhook => webhook.Name).HasMaxLength(100).IsRequired();
+            entity.Property(webhook => webhook.Url).HasMaxLength(500).IsRequired();
+            entity.Property(webhook => webhook.Secret).HasMaxLength(500).IsRequired();
+            entity.Property(webhook => webhook.EventTypes).HasMaxLength(500).IsRequired();
+            entity.Property(webhook => webhook.IsActive).HasDefaultValue(true);
+            entity.Property(webhook => webhook.FailedCount).HasDefaultValue(0);
+            entity.HasIndex(webhook => webhook.IsActive);
+        });
+
+        modelBuilder.Entity<TicketTimeEntry>(entity =>
+        {
+            entity.HasKey(entry => entry.Id);
+            entity.Property(entry => entry.UserName).HasMaxLength(80).IsRequired();
+            entity.Property(entry => entry.Description).HasMaxLength(500);
+            entity.HasIndex(entry => entry.TicketId);
+            entity.HasIndex(entry => entry.UserId);
+            entity.HasIndex(entry => entry.CreatedAt);
+        });
+
+        modelBuilder.Entity<UserNotification>(entity =>
+        {
+            entity.HasKey(notification => notification.Id);
+            entity.Property(notification => notification.Title).HasMaxLength(200).IsRequired();
+            entity.Property(notification => notification.Message).HasMaxLength(1000).IsRequired();
+            entity.Property(notification => notification.Url).HasMaxLength(500);
+            entity.Property(notification => notification.IsRead).HasDefaultValue(false);
+            entity.HasIndex(notification => notification.UserId);
+            entity.HasIndex(notification => notification.IsRead);
+            entity.HasIndex(notification => notification.CreatedAt);
+            entity.HasOne(notification => notification.User)
+                .WithMany()
+                .HasForeignKey(notification => notification.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RecurringTicket>(entity =>
+        {
+            entity.HasKey(recurring => recurring.Id);
+            entity.Property(recurring => recurring.Title).HasMaxLength(150).IsRequired();
+            entity.Property(recurring => recurring.Description).HasMaxLength(1200).IsRequired();
+            entity.Property(recurring => recurring.CronExpression).HasMaxLength(100).IsRequired();
+            entity.Property(recurring => recurring.IsActive).HasDefaultValue(true);
+            entity.HasIndex(recurring => recurring.IsActive);
+            entity.HasIndex(recurring => recurring.NextRunAt);
+            entity.HasOne(recurring => recurring.Department)
+                .WithMany()
+                .HasForeignKey(recurring => recurring.DepartmentId)
+                .IsRequired(false);
+        });
+
+        modelBuilder.Entity<ApiKey>(entity =>
+        {
+            entity.HasKey(apiKey => apiKey.Id);
+            entity.Property(apiKey => apiKey.Key).HasMaxLength(200).IsRequired();
+            entity.Property(apiKey => apiKey.Name).HasMaxLength(100).IsRequired();
+            entity.Property(apiKey => apiKey.Scopes).HasMaxLength(500).IsRequired();
+            entity.Property(apiKey => apiKey.IsActive).HasDefaultValue(true);
+            entity.HasIndex(apiKey => apiKey.Key).IsUnique();
+            entity.HasIndex(apiKey => apiKey.UserId);
+            entity.HasIndex(apiKey => apiKey.IsActive);
+            entity.HasOne(apiKey => apiKey.User)
+                .WithMany()
+                .HasForeignKey(apiKey => apiKey.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
     }
 
-    private void UpdateTicketAuditFields()
+    private void UpdateAuditFields()
     {
         var now = DateTime.UtcNow;
         foreach (var entry in ChangeTracker.Entries<SupportTicket>())
@@ -230,6 +395,23 @@ public class ApplicationDbContext : DbContext
             else if (entry.State == EntityState.Modified)
             {
                 entry.Entity.LastUpdatedAt = now;
+            }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<KnowledgeArticle>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                if (entry.Entity.CreatedAt == default)
+                {
+                    entry.Entity.CreatedAt = now;
+                }
+
+                entry.Entity.UpdatedAt = now;
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                entry.Entity.UpdatedAt = now;
             }
         }
     }
