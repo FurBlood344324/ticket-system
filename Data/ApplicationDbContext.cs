@@ -113,6 +113,8 @@ public class ApplicationDbContext : DbContext
             entity.Property(ticket => ticket.Category).HasDefaultValue(TicketCategory.Other);
             entity.Property(ticket => ticket.LastUpdatedAt).HasDefaultValueSql("CURRENT_TIMESTAMP");
             entity.Property(ticket => ticket.EscalationLevel).HasDefaultValue(0);
+            entity.Property(ticket => ticket.IsDeleted).HasDefaultValue(false);
+            entity.HasIndex(ticket => ticket.IsDeleted);
             entity.Ignore(ticket => ticket.IsOverdue);
             entity.HasOne(ticket => ticket.Department)
                 .WithMany()

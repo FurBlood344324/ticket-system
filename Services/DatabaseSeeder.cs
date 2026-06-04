@@ -23,7 +23,7 @@ public static class DatabaseSeeder
         SeedTicketTimeEntries(dbContext);
         SeedUserNotifications(dbContext);
         SeedRecurringTickets(dbContext);
-        SeedApiKeys(dbContext);
+        SeedApiKeys(dbContext, passwordHasher);
     }
 
     private static void SeedOrganizations(ApplicationDbContext dbContext)
@@ -680,7 +680,7 @@ public static class DatabaseSeeder
         dbContext.SaveChanges();
     }
 
-    private static void SeedApiKeys(ApplicationDbContext dbContext)
+    private static void SeedApiKeys(ApplicationDbContext dbContext, PasswordHasher passwordHasher)
     {
         if (dbContext.ApiKeys.Any())
         {
@@ -691,7 +691,7 @@ public static class DatabaseSeeder
 
         dbContext.ApiKeys.Add(new ApiKey
         {
-            Key = "ticket_sk_demo_hashed_key_1234567890abcdef", // Gerçekte hash'lenmiş olacak
+            Key = passwordHasher.Hash("ticket_sk_demo_live_key_1234567890abcdef"),
             Name = "Raporlama API Anahtarı",
             UserId = adminUser.Id,
             Scopes = "read:tickets,read:reports",

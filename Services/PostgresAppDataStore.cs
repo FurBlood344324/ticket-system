@@ -97,6 +97,7 @@ public class PostgresAppDataStore : IAppDataStore
     {
         return dbContext.Tickets
             .AsNoTracking()
+            .Where(ticket => !ticket.IsDeleted)
             .Include(ticket => ticket.Department)
             .Include(ticket => ticket.Replies)
             .Include(ticket => ticket.Tags)
@@ -112,6 +113,7 @@ public class PostgresAppDataStore : IAppDataStore
 
         var baseQuery = dbContext.Tickets
             .AsNoTracking()
+            .Where(ticket => !ticket.IsDeleted)
             .AsQueryable();
 
         baseQuery = ticketQueryService.ApplyFilters(baseQuery, normalizedFilter, forcedCustomerId);
@@ -171,7 +173,7 @@ public class PostgresAppDataStore : IAppDataStore
             .Include(ticket => ticket.Replies)
             .Include(ticket => ticket.Tags)
             .ThenInclude(relation => relation.Tag)
-            .FirstOrDefault(ticket => ticket.Id == id);
+            .FirstOrDefault(ticket => ticket.Id == id && !ticket.IsDeleted);
     }
 
     public SupportTicket? FindTicketDetails(int id)
@@ -186,7 +188,7 @@ public class PostgresAppDataStore : IAppDataStore
             .Include(ticket => ticket.Attachments)
             .Include(ticket => ticket.TimeEntries.OrderBy(entry => entry.CreatedAt))
             .Include(ticket => ticket.AuditEvents.OrderBy(audit => audit.CreatedAt))
-            .FirstOrDefault(ticket => ticket.Id == id);
+            .FirstOrDefault(ticket => ticket.Id == id && !ticket.IsDeleted);
     }
 
     public TicketAttachment? FindAttachment(int id)
@@ -264,7 +266,7 @@ public class PostgresAppDataStore : IAppDataStore
 
     public void AssignTicket(int ticketId, AppUser supportUser)
     {
-        var ticket = dbContext.Tickets.FirstOrDefault(ticket => ticket.Id == ticketId);
+        var ticket = dbContext.Tickets.FirstOrDefault(ticket => ticket.Id == ticketId && !ticket.IsDeleted);
         if (ticket is null)
         {
             return;
@@ -290,7 +292,7 @@ public class PostgresAppDataStore : IAppDataStore
 
     public void AddReply(int ticketId, TicketReplyViewModel model, AppUser author, IReadOnlyCollection<TicketAttachment> attachments)
     {
-        var ticket = dbContext.Tickets.FirstOrDefault(ticket => ticket.Id == ticketId);
+        var ticket = dbContext.Tickets.FirstOrDefault(ticket => ticket.Id == ticketId && !ticket.IsDeleted);
         if (ticket is null)
         {
             return;
@@ -334,7 +336,7 @@ public class PostgresAppDataStore : IAppDataStore
                 TicketId = ticket.Id,
                 UserId = author.Id,
                 UserName = author.FullName,
-                Minutes = reply.TimeSpentMinutes.Value,
+                Minutes = reply.TimeSpentMinutes ?? 0,
                 Description = $"Yanıt üzerinden zaman girişi: {TrimForAudit(reply.Message)}",
                 ActivityType = TicketActivityType.Work,
                 CreatedAt = reply.CreatedAt
@@ -368,7 +370,7 @@ public class PostgresAppDataStore : IAppDataStore
 
     public void AddTimeEntry(int ticketId, TicketTimeEntryViewModel model, AppUser user, string? auditAction = null)
     {
-        var ticketExists = dbContext.Tickets.Any(ticket => ticket.Id == ticketId);
+        var ticketExists = dbContext.Tickets.Any(ticket => ticket.Id == ticketId && !ticket.IsDeleted);
         if (!ticketExists)
         {
             return;
@@ -398,7 +400,7 @@ public class PostgresAppDataStore : IAppDataStore
 
     public void UpdateTicket(int ticketId, TicketEditViewModel model, AppUser actor)
     {
-        var ticket = dbContext.Tickets.FirstOrDefault(ticket => ticket.Id == ticketId);
+        var ticket = dbContext.Tickets.FirstOrDefault(ticket => ticket.Id == ticketId && !ticket.IsDeleted);
         if (ticket is null)
         {
             return;
@@ -426,7 +428,7 @@ public class PostgresAppDataStore : IAppDataStore
 
     public void UpdateStatus(int ticketId, TicketStatus status, AppUser actor)
     {
-        var ticket = dbContext.Tickets.FirstOrDefault(ticket => ticket.Id == ticketId);
+        var ticket = dbContext.Tickets.FirstOrDefault(ticket => ticket.Id == ticketId && !ticket.IsDeleted);
         if (ticket is null || ticket.Status == status)
         {
             return;

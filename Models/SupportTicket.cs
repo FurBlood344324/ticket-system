@@ -13,6 +13,8 @@ public class SupportTicket
     public DateTime? DueDate { get; set; }
     public DateTime? FirstResponseAt { get; set; }
     public DateTime? ResolvedAt { get; set; }
+    public bool IsDeleted { get; set; }
+    public DateTime? DeletedAt { get; set; }
     public int EscalationLevel { get; set; }
     public int CustomerId { get; set; }
     public string CustomerName { get; set; } = string.Empty;
