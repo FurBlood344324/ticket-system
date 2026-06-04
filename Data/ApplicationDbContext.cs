@@ -16,6 +16,8 @@ public class ApplicationDbContext : DbContext
     public DbSet<TicketTag> TicketTags => Set<TicketTag>();
     public DbSet<TicketTagRelation> TicketTagRelations => Set<TicketTagRelation>();
     public DbSet<SlaPolicy> SlaPolicies => Set<SlaPolicy>();
+    public DbSet<CustomerOrganization> CustomerOrganizations => Set<CustomerOrganization>();
+    public DbSet<NotificationPreference> NotificationPreferences => Set<NotificationPreference>();
 
     public override int SaveChanges()
     {
@@ -38,10 +40,53 @@ public class ApplicationDbContext : DbContext
             entity.Property(user => user.Email).HasMaxLength(120).IsRequired();
             entity.Property(user => user.PasswordHash).HasMaxLength(120).IsRequired();
             entity.HasIndex(user => user.Email).IsUnique();
+
+            // Yeni alan konfigürasyonları
+            entity.Property(user => user.ProfileImageUrl).HasMaxLength(500);
+            entity.Property(user => user.Phone).HasMaxLength(20);
+            entity.Property(user => user.JobTitle).HasMaxLength(100);
+            entity.Property(user => user.TwoFactorSecretKey).HasMaxLength(100);
+            entity.Property(user => user.PreferredLanguage).HasMaxLength(10).HasDefaultValue("tr");
+            entity.Property(user => user.EmailNotificationsEnabled).HasDefaultValue(true);
+            entity.Property(user => user.PushNotificationsEnabled).HasDefaultValue(true);
+            entity.Property(user => user.TwoFactorEnabled).HasDefaultValue(false);
+            entity.Property(user => user.DarkMode).HasDefaultValue(false);
+            entity.Property(user => user.IsActive).HasDefaultValue(true);
+            entity.Property(user => user.Signature).HasMaxLength(500);
+
             entity.HasOne(user => user.Department)
                 .WithMany()
                 .HasForeignKey(user => user.DepartmentId)
                 .IsRequired(false);
+
+            entity.HasOne(user => user.Organization)
+                .WithMany(org => org.Members)
+                .HasForeignKey(user => user.OrganizationId)
+                .IsRequired(false);
+        });
+
+        modelBuilder.Entity<CustomerOrganization>(entity =>
+        {
+            entity.HasKey(org => org.Id);
+            entity.Property(org => org.CompanyName).HasMaxLength(120).IsRequired();
+            entity.Property(org => org.TaxNumber).HasMaxLength(20);
+            entity.Property(org => org.Phone).HasMaxLength(20);
+            entity.Property(org => org.Address).HasMaxLength(250);
+            entity.Property(org => org.IsActive).HasDefaultValue(true);
+            entity.HasIndex(org => org.CompanyName);
+        });
+
+        modelBuilder.Entity<NotificationPreference>(entity =>
+        {
+            entity.HasKey(pref => pref.Id);
+            entity.Property(pref => pref.EventType).HasMaxLength(60).IsRequired();
+            entity.Property(pref => pref.EmailEnabled).HasDefaultValue(true);
+            entity.Property(pref => pref.PushEnabled).HasDefaultValue(true);
+            entity.HasIndex(pref => new { pref.UserId, pref.EventType }).IsUnique();
+            entity.HasOne(pref => pref.User)
+                .WithMany(user => user.NotificationPreferences)
+                .HasForeignKey(pref => pref.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<SupportTicket>(entity =>

@@ -7,9 +7,28 @@ public static class DatabaseSeeder
 {
     public static void Seed(ApplicationDbContext dbContext, PasswordHasher passwordHasher)
     {
+        SeedOrganizations(dbContext);
         SeedDepartments(dbContext);
         SeedUsers(dbContext, passwordHasher);
         SeedTickets(dbContext);
+    }
+
+    private static void SeedOrganizations(ApplicationDbContext dbContext)
+    {
+        if (dbContext.CustomerOrganizations.Any())
+        {
+            return;
+        }
+
+        dbContext.CustomerOrganizations.Add(new CustomerOrganization
+        {
+            CompanyName = "Demo Teknoloji A.Ş.",
+            TaxNumber = "1234567890",
+            Phone = "+90 212 555 0000",
+            Address = "Levent Mah. Teknoloji Cad. No:42, Beşiktaş, İstanbul"
+        });
+
+        dbContext.SaveChanges();
     }
 
     private static void SeedDepartments(ApplicationDbContext dbContext)
@@ -30,6 +49,8 @@ public static class DatabaseSeeder
 
     private static void SeedUsers(ApplicationDbContext dbContext, PasswordHasher passwordHasher)
     {
+        var demoOrg = dbContext.CustomerOrganizations.First(org => org.CompanyName == "Demo Teknoloji A.Ş.");
+
         var adminUser = dbContext.Users.FirstOrDefault(user => user.Email == "admin@ticket.local");
         if (adminUser is null)
         {
@@ -38,7 +59,14 @@ public static class DatabaseSeeder
                 FullName = "Sistem Yöneticisi",
                 Email = "admin@ticket.local",
                 PasswordHash = passwordHasher.Hash("123456"),
-                Role = UserRole.Admin
+                Role = UserRole.Admin,
+                IsActive = true,
+                JobTitle = "BT Yöneticisi",
+                PreferredLanguage = "tr",
+                DarkMode = false,
+                EmailNotificationsEnabled = true,
+                PushNotificationsEnabled = true,
+                Signature = "İyi çalışmalar,\nSistem Yöneticisi"
             };
             dbContext.Users.Add(adminUser);
         }
@@ -54,7 +82,14 @@ public static class DatabaseSeeder
                 Email = "destek@ticket.local",
                 PasswordHash = passwordHasher.Hash("123456"),
                 Role = UserRole.Support,
-                DepartmentId = itDepartment.Id
+                DepartmentId = itDepartment.Id,
+                IsActive = true,
+                JobTitle = "Destek Uzmanı",
+                PreferredLanguage = "tr",
+                DarkMode = true,
+                EmailNotificationsEnabled = true,
+                PushNotificationsEnabled = true,
+                Signature = "Saygılarımla,\nBT Destek Ekibi"
             };
             dbContext.Users.Add(supportUser);
         }
@@ -71,9 +106,21 @@ public static class DatabaseSeeder
                 FullName = "Demo Müşteri",
                 Email = "musteri@ticket.local",
                 PasswordHash = passwordHasher.Hash("123456"),
-                Role = UserRole.Customer
+                Role = UserRole.Customer,
+                OrganizationId = demoOrg.Id,
+                IsActive = true,
+                JobTitle = "Yazılım Geliştirici",
+                Phone = "+90 555 123 4567",
+                PreferredLanguage = "tr",
+                DarkMode = false,
+                EmailNotificationsEnabled = true,
+                PushNotificationsEnabled = false
             };
             dbContext.Users.Add(customer);
+        }
+        else if (customer.OrganizationId is null)
+        {
+            customer.OrganizationId = demoOrg.Id;
         }
 
         dbContext.SaveChanges();
