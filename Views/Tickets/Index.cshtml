@@ -545,7 +545,7 @@
                                 <td>@ticket.CustomerName</td>
                                 <td>@(ticket.AssignedSupportName ?? "Atanmadı")</td>
                                 <td><span class="badge @SlaClass(ticket)">@SlaText(ticket)</span></td>
-                                <td>@ticket.CreatedAt.ToString("dd.MM.yyyy HH:mm")</td>
+                                <td>@ticket.CreatedAt.ToLocalString()</td>
                             </tr>
                         }
                     </tbody>

@@ -45,7 +45,7 @@ else
                                 <span class="badge bg-primary rounded-pill" style="width:8px;height:8px;min-width:8px;" title="Okunmamış">&nbsp;</span>
                             }
                             <strong class="@(notification.IsRead ? "text-body" : "")">@notification.Title</strong>
-                            <small class="text-muted ms-auto">@notification.CreatedAt.ToString("dd.MM.yyyy HH:mm")</small>
+                            <small class="text-muted ms-auto">@notification.CreatedAt.ToLocalString()</small>
                         </div>
                         <p class="mb-2 text-muted" style="font-size:14px;">@notification.Message</p>
                         <div class="d-flex gap-2">

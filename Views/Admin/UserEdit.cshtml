@@ -1,0 +1,56 @@
+@model AdminUserEditViewModel
+@{
+    ViewData["Title"] = "Kullanıcı Düzenle";
+    var departments = ViewBag.Departments as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+}
+
+<div class="cd-page-head">
+    <span class="cd-eyebrow">Yönetim · Kullanıcılar · Düzenle</span>
+    <h1>Kullanıcı Düzenle</h1>
+    <p class="fw-mono">@Model.Email</p>
+</div>
+
+<div class="cd-card" style="max-width:760px;">
+    <div class="cd-card-body">
+        <form asp-action="UserEdit" method="post" class="cd-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id" />
+            <input type="hidden" asp-for="Email" />
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+            <div class="cd-form-grid">
+                <div class="cd-field">
+                    <label asp-for="FullName"></label>
+                    <input asp-for="FullName" class="cd-input" />
+                    <span asp-validation-for="FullName"></span>
+                </div>
+                <div class="cd-field">
+                    <label asp-for="Role"></label>
+                    <select asp-for="Role" asp-items="Html.GetEnumSelectList<UserRole>()" class="cd-input"></select>
+                </div>
+                <div class="cd-field">
+                    <label asp-for="DepartmentId"></label>
+                    <select asp-for="DepartmentId" asp-items="departments" class="cd-input">
+                        <option value="">— Departman yok —</option>
+                    </select>
+                </div>
+                <div class="cd-field">
+                    <label asp-for="JobTitle"></label>
+                    <input asp-for="JobTitle" class="cd-input" />
+                </div>
+                <div class="cd-field">
+                    <label asp-for="Phone"></label>
+                    <input asp-for="Phone" class="cd-input" />
+                </div>
+                <div class="cd-field d-flex align-items-end">
+                    <label class="cd-check"><input asp-for="IsActive" type="checkbox" /> Aktif kullanıcı</label>
+                </div>
+            </div>
+            <div class="cd-toolbar mt-2">
+                <button type="submit" class="cd-btn cd-btn-primary">Değişiklikleri Kaydet</button>
+                <a class="cd-btn cd-btn-ghost" asp-action="Users">Vazgeç</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

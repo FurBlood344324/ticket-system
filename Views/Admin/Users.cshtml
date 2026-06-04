@@ -1,0 +1,59 @@
+@model List<AppUser>
+@{
+    ViewData["Title"] = "Kullanıcılar";
+}
+
+<div class="cd-page-head">
+    <span class="cd-eyebrow">Yönetim · Kullanıcılar</span>
+    <h1>Kullanıcılar</h1>
+</div>
+<partial name="_AdminNav" />
+
+<div class="cd-toolbar">
+    <span class="cd-pill cyan">@Model.Count kayıt</span>
+    <span class="cd-spacer"></span>
+    <a class="cd-btn cd-btn-primary" asp-action="UserCreate">+ Yeni Kullanıcı</a>
+</div>
+
+<div class="cd-table-wrap">
+    <table class="cd-table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Ad Soyad</th>
+                <th>E-posta</th>
+                <th>Rol</th>
+                <th>Departman</th>
+                <th>Durum</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @if (Model.Count == 0)
+            {
+                <tr><td colspan="7"><div class="cd-empty">kayıt yok</div></td></tr>
+            }
+            @foreach (var user in Model)
+            {
+                <tr>
+                    <td class="cd-id">@user.Id</td>
+                    <td>@user.FullName</td>
+                    <td class="fw-mono">@user.Email</td>
+                    <td><span class="cd-pill @DisplayLabels.RoleClass(user.Role)">@DisplayLabels.Role(user.Role)</span></td>
+                    <td>@(user.Department?.Name ?? "—")</td>
+                    <td>
+                        @if (user.IsActive)
+                        {
+                            <span class="cd-pill green"><span class="cd-dot"></span> aktif</span>
+                        }
+                        else
+                        {
+                            <span class="cd-pill off"><span class="cd-dot off"></span> pasif</span>
+                        }
+                    </td>
+                    <td><a class="cd-btn cd-btn-sm" asp-action="UserEdit" asp-route-id="@user.Id">Düzenle</a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

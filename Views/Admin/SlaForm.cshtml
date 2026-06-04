@@ -1,0 +1,45 @@
+@model SlaPolicyFormViewModel
+@{
+    var isEdit = Model.Id != 0;
+    ViewData["Title"] = isEdit ? "SLA Düzenle" : "Yeni SLA Politikası";
+}
+
+<div class="cd-page-head">
+    <span class="cd-eyebrow">Yönetim · SLA · @(isEdit ? "Düzenle" : "Yeni")</span>
+    <h1>@(isEdit ? "SLA Politikası Düzenle" : "Yeni SLA Politikası")</h1>
+</div>
+
+<div class="cd-card" style="max-width:640px;">
+    <div class="cd-card-body">
+        <form asp-action="@(isEdit ? "SlaEdit" : "SlaCreate")" method="post" class="cd-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id" />
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+            <div class="cd-field">
+                <label asp-for="Priority"></label>
+                <select asp-for="Priority" asp-items="Html.GetEnumSelectList<TicketPriority>()" class="cd-input"></select>
+            </div>
+            <div class="cd-form-grid">
+                <div class="cd-field">
+                    <label asp-for="ResponseTimeMinutes"></label>
+                    <input asp-for="ResponseTimeMinutes" type="number" min="1" class="cd-input" />
+                    <span asp-validation-for="ResponseTimeMinutes"></span>
+                </div>
+                <div class="cd-field">
+                    <label asp-for="ResolutionTimeMinutes"></label>
+                    <input asp-for="ResolutionTimeMinutes" type="number" min="1" class="cd-input" />
+                    <span asp-validation-for="ResolutionTimeMinutes"></span>
+                </div>
+            </div>
+            <div class="cd-field">
+                <label class="cd-check"><input asp-for="BusinessHoursOnly" type="checkbox" /> Yalnızca mesai saatlerinde işlet</label>
+            </div>
+            <div class="cd-toolbar mt-2">
+                <button type="submit" class="cd-btn cd-btn-primary">Kaydet</button>
+                <a class="cd-btn cd-btn-ghost" asp-action="SlaPolicies">Vazgeç</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

@@ -1,0 +1,66 @@
+@model RecurringTicketFormViewModel
+@{
+    var isEdit = Model.Id != 0;
+    ViewData["Title"] = isEdit ? "Yinelenen Talep Düzenle" : "Yeni Yinelenen Talep";
+    var departments = ViewBag.Departments as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+}
+
+<div class="cd-page-head">
+    <span class="cd-eyebrow">Yönetim · Yinelenen Talepler · @(isEdit ? "Düzenle" : "Yeni")</span>
+    <h1>@(isEdit ? "Yinelenen Talep Düzenle" : "Yeni Yinelenen Talep")</h1>
+</div>
+
+<div class="cd-card" style="max-width:820px;">
+    <div class="cd-card-body">
+        <form asp-action="@(isEdit ? "RecurringEdit" : "RecurringCreate")" method="post" class="cd-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id" />
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+            <div class="cd-field">
+                <label asp-for="Title"></label>
+                <input asp-for="Title" class="cd-input" />
+                <span asp-validation-for="Title"></span>
+            </div>
+            <div class="cd-field">
+                <label asp-for="Description"></label>
+                <textarea asp-for="Description" class="cd-input"></textarea>
+                <span asp-validation-for="Description"></span>
+            </div>
+            <div class="cd-form-grid">
+                <div class="cd-field">
+                    <label asp-for="Category"></label>
+                    <select asp-for="Category" asp-items="Html.GetEnumSelectList<TicketCategory>()" class="cd-input"></select>
+                </div>
+                <div class="cd-field">
+                    <label asp-for="Priority"></label>
+                    <select asp-for="Priority" asp-items="Html.GetEnumSelectList<TicketPriority>()" class="cd-input"></select>
+                </div>
+                <div class="cd-field">
+                    <label asp-for="DepartmentId"></label>
+                    <select asp-for="DepartmentId" asp-items="departments" class="cd-input">
+                        <option value="">— Departman yok —</option>
+                    </select>
+                </div>
+                <div class="cd-field">
+                    <label asp-for="CronExpression"></label>
+                    <input asp-for="CronExpression" class="cd-input fw-mono" placeholder="0 9 * * 1" />
+                    <span class="cd-help">Biçim: dakika saat gün ay haftanın-günü</span>
+                    <span asp-validation-for="CronExpression"></span>
+                </div>
+                <div class="cd-field">
+                    <label asp-for="NextRunAtLocal"></label>
+                    <input asp-for="NextRunAtLocal" type="datetime-local" class="cd-input" value="@(Model.NextRunAtLocal?.ToString("yyyy-MM-ddTHH:mm"))" />
+                </div>
+                <div class="cd-field d-flex align-items-end">
+                    <label class="cd-check"><input asp-for="IsActive" type="checkbox" /> Aktif</label>
+                </div>
+            </div>
+            <div class="cd-toolbar mt-2">
+                <button type="submit" class="cd-btn cd-btn-primary">Kaydet</button>
+                <a class="cd-btn cd-btn-ghost" asp-action="Recurring">Vazgeç</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

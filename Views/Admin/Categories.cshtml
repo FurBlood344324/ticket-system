@@ -1,0 +1,50 @@
+@model List<KnowledgeCategory>
+@{
+    ViewData["Title"] = "KB Kategorileri";
+}
+
+<div class="cd-page-head">
+    <span class="cd-eyebrow">Yönetim · Bilgi Bankası · Kategoriler</span>
+    <h1>Bilgi Bankası Kategorileri</h1>
+</div>
+<partial name="_AdminNav" />
+
+<div class="cd-toolbar">
+    <span class="cd-pill cyan">@Model.Count kayıt</span>
+    <span class="cd-spacer"></span>
+    <a class="cd-btn cd-btn-primary" asp-action="CategoryCreate">+ Yeni Kategori</a>
+</div>
+
+<div class="cd-table-wrap">
+    <table class="cd-table">
+        <thead>
+            <tr><th>#</th><th>Sıra</th><th>Ad</th><th>Açıklama</th><th>Durum</th><th></th></tr>
+        </thead>
+        <tbody>
+            @if (Model.Count == 0)
+            {
+                <tr><td colspan="6"><div class="cd-empty">kayıt yok</div></td></tr>
+            }
+            @foreach (var c in Model)
+            {
+                <tr>
+                    <td class="cd-id">@c.Id</td>
+                    <td class="fw-mono">@c.SortOrder</td>
+                    <td>@c.Name</td>
+                    <td>@(string.IsNullOrWhiteSpace(c.Description) ? "—" : c.Description)</td>
+                    <td>
+                        @if (c.IsActive)
+                        {
+                            <span class="cd-pill green"><span class="cd-dot"></span> aktif</span>
+                        }
+                        else
+                        {
+                            <span class="cd-pill off"><span class="cd-dot off"></span> pasif</span>
+                        }
+                    </td>
+                    <td><a class="cd-btn cd-btn-sm" asp-action="CategoryEdit" asp-route-id="@c.Id">Düzenle</a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

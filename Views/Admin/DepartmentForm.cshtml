@@ -1,0 +1,39 @@
+@model DepartmentFormViewModel
+@{
+    var isEdit = Model.Id != 0;
+    ViewData["Title"] = isEdit ? "Departman Düzenle" : "Yeni Departman";
+}
+
+<div class="cd-page-head">
+    <span class="cd-eyebrow">Yönetim · Departmanlar · @(isEdit ? "Düzenle" : "Yeni")</span>
+    <h1>@(isEdit ? "Departman Düzenle" : "Yeni Departman")</h1>
+</div>
+
+<div class="cd-card" style="max-width:640px;">
+    <div class="cd-card-body">
+        <form asp-action="@(isEdit ? "DepartmentEdit" : "DepartmentCreate")" method="post" class="cd-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id" />
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+            <div class="cd-field">
+                <label asp-for="Name"></label>
+                <input asp-for="Name" class="cd-input" />
+                <span asp-validation-for="Name"></span>
+            </div>
+            <div class="cd-field">
+                <label asp-for="Description"></label>
+                <textarea asp-for="Description" class="cd-input" style="min-height:90px;"></textarea>
+                <span asp-validation-for="Description"></span>
+            </div>
+            <div class="cd-field">
+                <label class="cd-check"><input asp-for="IsActive" type="checkbox" /> Aktif</label>
+            </div>
+            <div class="cd-toolbar mt-2">
+                <button type="submit" class="cd-btn cd-btn-primary">Kaydet</button>
+                <a class="cd-btn cd-btn-ghost" asp-action="Departments">Vazgeç</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

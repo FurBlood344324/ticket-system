@@ -3,17 +3,42 @@
 @{
     var currentUserIdText = User.FindFirstValue(ClaimTypes.NameIdentifier);
     var hasUserId = int.TryParse(currentUserIdText, out var currentUserId);
-    var unreadCount = User.Identity?.IsAuthenticated == true && hasUserId
+    var isAuth = User.Identity?.IsAuthenticated == true;
+    var unreadCount = isAuth && hasUserId
         ? DbContext.UserNotifications.Count(item => item.UserId == currentUserId && !item.IsRead)
         : 0;
+
+    var controller = (ViewContext.RouteData.Values["controller"] as string) ?? "";
+    var action = (ViewContext.RouteData.Values["action"] as string) ?? "";
+    string Active(string c) => string.Equals(controller, c, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+    string ActiveA(string c, string a) =>
+        string.Equals(controller, c, StringComparison.OrdinalIgnoreCase) &&
+        string.Equals(action, a, StringComparison.OrdinalIgnoreCase) ? "active" : "";
+    bool ActAdmin(params string[] prefixes) =>
+        string.Equals(controller, "Admin", StringComparison.OrdinalIgnoreCase) &&
+        prefixes.Any(p => action.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+    var isAdmin = User.IsInRole("Admin");
+
+    var displayName = User.Identity?.Name ?? "";
+    var nameParts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+    var firstName = nameParts.FirstOrDefault() ?? displayName;
+    var initials = nameParts.Length > 0
+        ? string.Concat(nameParts.Take(2).Select(p => char.ToUpper(p[0])))
+        : "?";
+    var localHour = TicketSupport.Helpers.DateTimeExtensions.ToLocal(DateTime.UtcNow).Hour;
+    var greeting = localHour < 6 ? "İyi geceler" : localHour < 11 ? "Günaydın"
+        : localHour < 18 ? "İyi günler" : localHour < 22 ? "İyi akşamlar" : "İyi geceler";
 }
 <!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>@ViewData["Title"] - Ticket Destek</title>
+    <title>@ViewData["Title"] · Ticket Deck</title>
     <script type="importmap"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.min.css" />
     <link rel="stylesheet" href="~/css/site.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/toast.css" asp-append-version="true" />
@@ -22,99 +47,155 @@
 </head>
 <body>
     <div id="app-shell"
-         data-is-authenticated="@(User.Identity?.IsAuthenticated == true ? "true" : "false")"
+         data-is-authenticated="@(isAuth ? "true" : "false")"
          data-unread-count="@unreadCount">
-        <header>
-            <nav class="navbar navbar-expand-sm navbar-toggleable-sm navbar-light bg-white border-bottom box-shadow mb-3">
-                <div class="container-fluid">
-                    <a class="navbar-brand fw-semibold" asp-area="" asp-controller="Home" asp-action="Index">Ticket Destek</a>
-                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target=".navbar-collapse" aria-controls="navbarSupportedContent"
-                            aria-expanded="false" aria-label="Toggle navigation">
-                        <span class="navbar-toggler-icon"></span>
-                    </button>
-                    <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
-                        <ul class="navbar-nav flex-grow-1">
-                            <li class="nav-item">
-                                <a class="nav-link text-dark" asp-area="" asp-controller="Home" asp-action="Index">Ana Sayfa</a>
-                            </li>
-                            @if (User.Identity?.IsAuthenticated == true)
-                            {
-                                <li class="nav-item">
-                                    <a class="nav-link text-dark" asp-controller="Dashboard" asp-action="Index">Dashboard</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link text-dark" asp-controller="Tickets" asp-action="Index">Talepler</a>
-                                </li>
-                                @if (User.IsInRole("Customer"))
-                                {
-                                    <li class="nav-item">
-                                        <a class="nav-link text-dark" asp-controller="Tickets" asp-action="Create">Yeni Talep</a>
-                                    </li>
-                                }
-                                @if (User.IsInRole("Admin"))
-                                {
-                                    <li class="nav-item">
-                                        <a class="nav-link text-dark" asp-controller="Admin" asp-action="Index">Yönetim</a>
-                                    </li>
-                                }
-                            }
-                        </ul>
-                        <ul class="navbar-nav">
-                            @if (User.Identity?.IsAuthenticated == true)
-                            {
-                                <li class="nav-item me-2">
-                                    <a class="nav-link position-relative px-2" asp-controller="Notifications" asp-action="Index" title="Bildirimler">
-                                        <span class="d-inline-flex align-items-center gap-2">
-                                            <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                                                <path d="M8 1a3 3 0 0 0-3 3v1.09c0 .71-.2 1.4-.58 2L3.35 8.9A1 1 0 0 0 4.2 10.5h7.6a1 1 0 0 0 .85-1.6l-1.07-1.81A3.98 3.98 0 0 1 11 5.09V4a3 3 0 0 0-3-3Zm0 14a2 2 0 0 0 1.93-1.5H6.07A2 2 0 0 0 8 15Z" />
-                                            </svg>
-                                            <span>Bildirimler</span>
-                                        </span>
-                                        <span id="notification-badge"
-                                              class="notification-badge badge rounded-pill text-bg-danger @(unreadCount == 0 ? "d-none" : null)">
-                                            @(unreadCount > 99 ? "99+" : unreadCount)
-                                        </span>
-                                    </a>
-                                </li>
-                                <li class="nav-item">
-                                    <span class="nav-link text-muted">@User.Identity.Name</span>
-                                </li>
-                                <li class="nav-item">
-                                    <form asp-controller="Account" asp-action="Logout" method="post">
-                                        <button type="submit" class="btn btn-link nav-link text-dark">Çıkış</button>
-                                    </form>
-                                </li>
-                            }
-                            else
-                            {
-                                <li class="nav-item">
-                                    <a class="nav-link text-dark" asp-controller="Account" asp-action="Login">Giriş</a>
-                                </li>
-                                <li class="nav-item">
-                                    <a class="nav-link text-dark" asp-controller="Account" asp-action="Register">Kayıt</a>
-                                </li>
-                            }
-                        </ul>
+        @if (isAuth)
+        {
+            <div class="cd-shell">
+                <aside class="cd-sidebar">
+                    <a class="cd-brand" asp-controller="Dashboard" asp-action="Index">
+                        <span class="cd-brand-mark">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2H4a1 1 0 0 1-1-1v-5a9 9 0 0 1 18 0v5a1 1 0 0 1-1 1h-2a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3"/></svg>
+                        </span>
+                        <span>Ticket Deck<small>Destek Merkezi</small></span>
+                    </a>
+
+                    <div class="cd-nav-group-label">Çalışma Alanı</div>
+                    <a class="cd-nav-link @Active("Dashboard")" asp-controller="Dashboard" asp-action="Index">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+                        Panel
+                    </a>
+                    <a class="cd-nav-link @Active("Tickets")" asp-controller="Tickets" asp-action="Index">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg>
+                        Talepler
+                    </a>
+                    @if (User.IsInRole("Customer"))
+                    {
+                        <a class="cd-nav-link @ActiveA("Tickets","Create")" asp-controller="Tickets" asp-action="Create">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12h8"/><path d="M12 8v8"/></svg>
+                            Yeni Talep
+                        </a>
+                    }
+                    <a class="cd-nav-link @Active("Knowledge")" asp-controller="Knowledge" asp-action="Index">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>
+                        Bilgi Bankası
+                    </a>
+
+                    @if (isAdmin)
+                    {
+                        <div class="cd-nav-group-label">Yönetim</div>
+                        <a class="cd-nav-link @ActiveA("Admin","Index")" asp-controller="Admin" asp-action="Index">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="4" y1="21" y2="14"/><line x1="4" x2="4" y1="10" y2="3"/><line x1="12" x2="12" y1="21" y2="12"/><line x1="12" x2="12" y1="8" y2="3"/><line x1="20" x2="20" y1="21" y2="16"/><line x1="20" x2="20" y1="12" y2="3"/><line x1="2" x2="6" y1="14" y2="14"/><line x1="10" x2="14" y1="8" y2="8"/><line x1="18" x2="22" y1="16" y2="16"/></svg>
+                            Genel Bakış
+                        </a>
+                        <a class="cd-nav-link @(ActAdmin("User") ? "active" : "")" asp-controller="Admin" asp-action="Users">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                            Kullanıcılar
+                        </a>
+                        <a class="cd-nav-link @(ActAdmin("Department") ? "active" : "")" asp-controller="Admin" asp-action="Departments">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4M10 10h4M10 14h4M10 18h4"/></svg>
+                            Departmanlar
+                        </a>
+                        <a class="cd-nav-link @(ActAdmin("Sla") ? "active" : "")" asp-controller="Admin" asp-action="SlaPolicies">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="10" x2="14" y1="2" y2="2"/><line x1="12" x2="15" y1="14" y2="11"/><circle cx="12" cy="14" r="8"/></svg>
+                            SLA Politikaları
+                        </a>
+                        <a class="cd-nav-link @(ActAdmin("Template") ? "active" : "")" asp-controller="Admin" asp-action="Templates">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8M16 17H8M10 9H8"/></svg>
+                            Şablonlar
+                        </a>
+                        <a class="cd-nav-link @(ActAdmin("Canned") ? "active" : "")" asp-controller="Admin" asp-action="CannedResponses">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            Hazır Yanıtlar
+                        </a>
+                        <a class="cd-nav-link @(ActAdmin("Tag") ? "active" : "")" asp-controller="Admin" asp-action="Tags">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+                            Etiketler
+                        </a>
+                        <a class="cd-nav-link @(ActAdmin("Recurring") ? "active" : "")" asp-controller="Admin" asp-action="Recurring">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 11v-1a4 4 0 0 1 4-4h14"/><path d="m7 22-4-4 4-4"/><path d="M21 13v1a4 4 0 0 1-4 4H3"/></svg>
+                            Yinelenen Talepler
+                        </a>
+                        <a class="cd-nav-link @(ActAdmin("Categor", "Article") ? "active" : "")" asp-controller="Admin" asp-action="Articles">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20"/></svg>
+                            Bilgi Bankası Yön.
+                        </a>
+                    }
+
+                    <div class="cd-nav-group-label">Hesap</div>
+                    <a class="cd-nav-link @Active("Notifications")" asp-controller="Notifications" asp-action="Index">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                        Bildirimler
+                        @if (unreadCount > 0)
+                        {
+                            <span class="cd-nav-badge" id="sidebar-notif-badge">@(unreadCount > 99 ? "99+" : unreadCount)</span>
+                        }
+                    </a>
+                    <a class="cd-nav-link @ActiveA("Account","ChangePassword")" asp-controller="Account" asp-action="ChangePassword">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z"/><circle cx="16.5" cy="7.5" r=".5" fill="currentColor"/></svg>
+                        Şifre Değiştir
+                    </a>
+                    <form asp-controller="Account" asp-action="Logout" method="post" class="mt-1">
+                        <button type="submit" class="cd-nav-link" style="width:100%;border:none;background:transparent;text-align:left;cursor:pointer;font:inherit;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+                            Çıkış
+                        </button>
+                    </form>
+                </aside>
+
+                <div class="cd-main">
+                    <div class="cd-mobilebar">
+                        <a class="@Active("Dashboard")" asp-controller="Dashboard" asp-action="Index">Panel</a>
+                        <a class="@Active("Tickets")" asp-controller="Tickets" asp-action="Index">Talepler</a>
+                        <a class="@Active("Knowledge")" asp-controller="Knowledge" asp-action="Index">Bilgi Bankası</a>
+                        @if (isAdmin)
+                        {
+                            <a class="@Active("Admin")" asp-controller="Admin" asp-action="Index">Yönetim</a>
+                        }
+                        <a class="@Active("Notifications")" asp-controller="Notifications" asp-action="Index">Bildirimler</a>
                     </div>
+                    <header class="cd-topbar">
+                        <span class="cd-greeting"><span class="wave">👋</span> @greeting, @firstName</span>
+                        <span class="cd-topbar-spacer"></span>
+                        <span class="cd-status"><span class="pulse"></span> Sistemler aktif</span>
+                        <a class="cd-icon-btn" asp-controller="Notifications" asp-action="Index" title="Bildirimler">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                            <span id="notification-badge"
+                                  class="notification-badge badge rounded-pill text-bg-danger @(unreadCount == 0 ? "d-none" : null)">
+                                @(unreadCount > 99 ? "99+" : unreadCount)
+                            </span>
+                        </a>
+                        <span class="cd-topbar-user">
+                            <span class="cd-avatar">@initials</span>
+                            <span class="d-none d-md-inline">@displayName</span>
+                        </span>
+                    </header>
+
+                    <main role="main" class="cd-content">
+                        @if (TempData["Message"] is string message)
+                        {
+                            <div class="cd-alert success cd-flash-enter">@message</div>
+                        }
+                        @RenderBody()
+                    </main>
+
+                    <footer class="footer text-center py-3">
+                        <small>© 2026 · Ticket Deck — Destek Merkezi</small>
+                    </footer>
                 </div>
-            </nav>
-        </header>
-        <div class="container">
-            <main role="main" class="pb-3">
+            </div>
+        }
+        else
+        {
+            <main role="main" class="container py-5">
                 @if (TempData["Message"] is string message)
                 {
-                    <div class="alert alert-success">@message</div>
+                    <div class="cd-alert success">@message</div>
                 }
                 @RenderBody()
             </main>
-        </div>
+        }
         <partial name="_ToastPartial" />
-
-        <footer class="border-top footer text-muted">
-            <div class="container">
-                &copy; 2026 - Ticket Destek
-            </div>
-        </footer>
     </div>
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
@@ -123,25 +204,25 @@
     <script src="~/js/site.js" asp-append-version="true"></script>
     <script>
         (function() {
-            @if (User.Identity?.IsAuthenticated == true)
+            @if (isAuth)
             {
                 <text>
                 function updateNotificationBadge() {
                     fetch('/Notifications/GetUnreadCount')
                         .then(function(r) { return r.json(); })
                         .then(function(data) {
-                            var badge = document.getElementById('notification-badge');
                             var count = data.unreadCount ?? data.count ?? 0;
+                            var badge = document.getElementById('notification-badge');
                             if (badge) {
                                 if (count > 0) {
                                     badge.textContent = count > 99 ? '99+' : count;
-                                    badge.style.display = '';
                                     badge.classList.remove('d-none');
                                 } else {
-                                    badge.style.display = 'none';
                                     badge.classList.add('d-none');
                                 }
                             }
+                            var sb = document.getElementById('sidebar-notif-badge');
+                            if (sb) { sb.textContent = count > 99 ? '99+' : count; sb.style.display = count > 0 ? '' : 'none'; }
                         })
                         .catch(function() { });
                 }

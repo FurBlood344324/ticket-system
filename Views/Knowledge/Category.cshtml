@@ -1,0 +1,43 @@
+@model KnowledgeCategory
+@{
+    ViewData["Title"] = Model.Name;
+    var articles = Model.Articles.OrderByDescending(a => a.PublishedAt).ToList();
+}
+
+<div class="cd-page-head">
+    <span class="cd-eyebrow">Bilgi Bankası · @Model.Name</span>
+    <h1>@Model.Name</h1>
+    <p>@(string.IsNullOrWhiteSpace(Model.Description) ? "" : Model.Description)</p>
+</div>
+
+<div class="cd-toolbar">
+    <a class="cd-btn cd-btn-ghost" asp-action="Index">← Tüm kategoriler</a>
+    <span class="cd-spacer"></span>
+    <span class="cd-pill cyan">@articles.Count makale</span>
+</div>
+
+@if (articles.Count == 0)
+{
+    <div class="cd-card"><div class="cd-card-body"><div class="cd-empty">bu kategoride yayınlanmış makale yok</div></div></div>
+}
+else
+{
+    <div class="cd-table-wrap">
+        <table class="cd-table">
+            <thead>
+                <tr><th>Başlık</th><th>Görüntülenme</th><th>Yayın</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var article in articles)
+                {
+                    <tr>
+                        <td><a asp-action="Article" asp-route-id="@article.Id">@article.Title</a></td>
+                        <td class="fw-mono">@article.ViewCount</td>
+                        <td class="fw-mono">@article.PublishedAt.ToLocalString("dd.MM.yyyy")</td>
+                        <td><a class="cd-btn cd-btn-sm" asp-action="Article" asp-route-id="@article.Id">Oku →</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}

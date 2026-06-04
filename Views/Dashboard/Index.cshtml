@@ -240,7 +240,7 @@
                                     <span class="badge @priClass">@priLabel</span>
                                 </td>
                                 <td>
-                                    <span class="text-danger fw-semibold">@(item.DueDate?.ToString("dd MMM yyyy HH:mm") ?? "—")</span>
+                                    <span class="text-danger fw-semibold">@(item.DueDate?.ToLocalString("dd MMM yyyy HH:mm") ?? "—")</span>
                                 </td>
                                 <td>
                                     @{

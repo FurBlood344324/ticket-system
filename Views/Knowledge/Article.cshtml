@@ -1,0 +1,39 @@
+@using TicketSupport.Services
+@model KnowledgeArticle
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<div class="cd-page-head">
+    <span class="cd-eyebrow">Bilgi Bankası · Makale</span>
+    <h1>@Model.Title</h1>
+    <p>
+        @if (Model.Category is not null)
+        {
+            <a asp-action="Category" asp-route-id="@Model.Category.Id">@Model.Category.Name</a><span> · </span>
+        }
+        <span class="fw-mono">@Model.AuthorName · @Model.ViewCount görüntülenme · @Model.PublishedAt.ToLocalString("dd.MM.yyyy")</span>
+    </p>
+</div>
+
+<div class="cd-toolbar">
+    <a class="cd-btn cd-btn-ghost" asp-action="Index">← Bilgi Bankası</a>
+    @if (Model.Category is not null)
+    {
+        <a class="cd-btn cd-btn-ghost" asp-action="Category" asp-route-id="@Model.Category.Id">@Model.Category.Name</a>
+    }
+</div>
+
+<div class="cd-card">
+    <div class="cd-card-body">
+        <article class="cd-article">
+            @Html.Raw(SimpleMarkdown.Render(Model.Content))
+        </article>
+        <hr />
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <span class="cd-section-title mb-0">Bu makale yardımcı oldu mu?</span>
+            <span class="cd-pill green">👍 @Model.HelpfulCount</span>
+            <span class="cd-pill danger">👎 @Model.NotHelpfulCount</span>
+        </div>
+    </div>
+</div>

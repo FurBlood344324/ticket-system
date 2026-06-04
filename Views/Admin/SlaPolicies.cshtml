@@ -1,0 +1,42 @@
+@model List<SlaPolicy>
+@{
+    ViewData["Title"] = "SLA Politikaları";
+    string Fmt(int minutes) => minutes >= 60 ? $"{minutes / 60} sa {minutes % 60} dk" : $"{minutes} dk";
+}
+
+<div class="cd-page-head">
+    <span class="cd-eyebrow">Yönetim · SLA</span>
+    <h1>SLA Politikaları</h1>
+</div>
+<partial name="_AdminNav" />
+
+<div class="cd-toolbar">
+    <span class="cd-pill cyan">@Model.Count kayıt</span>
+    <span class="cd-spacer"></span>
+    <a class="cd-btn cd-btn-primary" asp-action="SlaCreate">+ Yeni SLA Politikası</a>
+</div>
+
+<div class="cd-table-wrap">
+    <table class="cd-table">
+        <thead>
+            <tr><th>#</th><th>Öncelik</th><th>İlk Yanıt</th><th>Çözüm</th><th>Mesai</th><th></th></tr>
+        </thead>
+        <tbody>
+            @if (Model.Count == 0)
+            {
+                <tr><td colspan="6"><div class="cd-empty">kayıt yok</div></td></tr>
+            }
+            @foreach (var p in Model)
+            {
+                <tr>
+                    <td class="cd-id">@p.Id</td>
+                    <td><span class="cd-pill @DisplayLabels.PriorityClass(p.Priority)">@DisplayLabels.Priority(p.Priority)</span></td>
+                    <td class="fw-mono">@Fmt(p.ResponseTimeMinutes)</td>
+                    <td class="fw-mono">@Fmt(p.ResolutionTimeMinutes)</td>
+                    <td>@(p.BusinessHoursOnly ? "Yalnızca mesai" : "7/24")</td>
+                    <td><a class="cd-btn cd-btn-sm" asp-action="SlaEdit" asp-route-id="@p.Id">Düzenle</a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

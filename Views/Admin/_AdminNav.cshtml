@@ -1,0 +1,16 @@
+@{
+    var action = (ViewContext.RouteData.Values["action"] as string) ?? "";
+    string Tab(params string[] prefixes) => prefixes.Any(p => action.StartsWith(p, StringComparison.OrdinalIgnoreCase)) ? "active" : "";
+}
+<nav class="cd-tabs">
+    <a class="cd-tab @(action == "Index" ? "active" : "")" asp-action="Index">▸ Genel Bakış</a>
+    <a class="cd-tab @Tab("User")" asp-action="Users">Kullanıcılar</a>
+    <a class="cd-tab @Tab("Department")" asp-action="Departments">Departmanlar</a>
+    <a class="cd-tab @Tab("Sla")" asp-action="SlaPolicies">SLA</a>
+    <a class="cd-tab @Tab("Template")" asp-action="Templates">Şablonlar</a>
+    <a class="cd-tab @Tab("Canned")" asp-action="CannedResponses">Hazır Yanıtlar</a>
+    <a class="cd-tab @Tab("Tag")" asp-action="Tags">Etiketler</a>
+    <a class="cd-tab @Tab("Recurring")" asp-action="Recurring">Yinelenen</a>
+    <a class="cd-tab @Tab("Categor")" asp-action="Categories">KB Kategoriler</a>
+    <a class="cd-tab @Tab("Article")" asp-action="Articles">KB Makaleler</a>
+</nav>

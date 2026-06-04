@@ -1,0 +1,64 @@
+@model KnowledgeArticleFormViewModel
+@{
+    var isEdit = Model.Id != 0;
+    ViewData["Title"] = isEdit ? "Makale Düzenle" : "Yeni Makale";
+    var categories = ViewBag.Categories as Microsoft.AspNetCore.Mvc.Rendering.SelectList;
+}
+
+<div class="cd-page-head">
+    <span class="cd-eyebrow">Yönetim · Bilgi Bankası · Makaleler · @(isEdit ? "Düzenle" : "Yeni")</span>
+    <h1>@(isEdit ? "Makale Düzenle" : "Yeni Makale")</h1>
+</div>
+
+<div class="cd-card" style="max-width:860px;">
+    <div class="cd-card-body">
+        <form asp-action="@(isEdit ? "ArticleEdit" : "ArticleCreate")" method="post" class="cd-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id" />
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+            <div class="cd-field">
+                <label asp-for="Title"></label>
+                <input asp-for="Title" class="cd-input" />
+                <span asp-validation-for="Title"></span>
+            </div>
+            <div class="cd-form-grid">
+                <div class="cd-field">
+                    <label asp-for="Slug"></label>
+                    <input asp-for="Slug" class="cd-input fw-mono" placeholder="otomatik" />
+                    <span asp-validation-for="Slug"></span>
+                </div>
+                <div class="cd-field">
+                    <label asp-for="KnowledgeCategoryId"></label>
+                    <select asp-for="KnowledgeCategoryId" asp-items="categories" class="cd-input">
+                        <option value="">— Kategori yok —</option>
+                    </select>
+                </div>
+            </div>
+            <div class="cd-field">
+                <label asp-for="Content"></label>
+                <textarea asp-for="Content" class="cd-input" style="min-height:240px;font-family:var(--cd-mono);font-size:0.85rem;"></textarea>
+                <span class="cd-help">Markdown desteklenir: # başlık, **kalın**, `kod`, - liste</span>
+                <span asp-validation-for="Content"></span>
+            </div>
+            <div class="cd-form-grid">
+                <div class="cd-field">
+                    <label asp-for="MetaKeywords"></label>
+                    <input asp-for="MetaKeywords" class="cd-input" />
+                </div>
+                <div class="cd-field">
+                    <label asp-for="MetaDescription"></label>
+                    <input asp-for="MetaDescription" class="cd-input" />
+                </div>
+            </div>
+            <div class="cd-field">
+                <label class="cd-check"><input asp-for="IsPublished" type="checkbox" /> Yayınla (genel görünümde gösterilsin)</label>
+            </div>
+            <div class="cd-toolbar mt-2">
+                <button type="submit" class="cd-btn cd-btn-primary">Kaydet</button>
+                <a class="cd-btn cd-btn-ghost" asp-action="Articles">Vazgeç</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

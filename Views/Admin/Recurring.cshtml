@@ -1,0 +1,52 @@
+@model List<RecurringTicket>
+@{
+    ViewData["Title"] = "Yinelenen Talepler";
+}
+
+<div class="cd-page-head">
+    <span class="cd-eyebrow">Yönetim · Yinelenen Talepler</span>
+    <h1>Yinelenen Talepler</h1>
+</div>
+<partial name="_AdminNav" />
+
+<div class="cd-toolbar">
+    <span class="cd-pill cyan">@Model.Count kayıt</span>
+    <span class="cd-spacer"></span>
+    <a class="cd-btn cd-btn-primary" asp-action="RecurringCreate">+ Yeni Yinelenen Talep</a>
+</div>
+
+<div class="cd-table-wrap">
+    <table class="cd-table">
+        <thead>
+            <tr><th>#</th><th>Başlık</th><th>Öncelik</th><th>Cron</th><th>Sonraki Çalışma</th><th>Departman</th><th>Durum</th><th></th></tr>
+        </thead>
+        <tbody>
+            @if (Model.Count == 0)
+            {
+                <tr><td colspan="8"><div class="cd-empty">kayıt yok</div></td></tr>
+            }
+            @foreach (var r in Model)
+            {
+                <tr>
+                    <td class="cd-id">@r.Id</td>
+                    <td>@r.Title</td>
+                    <td><span class="cd-pill @DisplayLabels.PriorityClass(r.Priority)">@DisplayLabels.Priority(r.Priority)</span></td>
+                    <td class="fw-mono">@r.CronExpression</td>
+                    <td class="fw-mono">@r.NextRunAt.ToLocalString()</td>
+                    <td>@(r.Department?.Name ?? "—")</td>
+                    <td>
+                        @if (r.IsActive)
+                        {
+                            <span class="cd-pill green"><span class="cd-dot"></span> aktif</span>
+                        }
+                        else
+                        {
+                            <span class="cd-pill off"><span class="cd-dot off"></span> pasif</span>
+                        }
+                    </td>
+                    <td><a class="cd-btn cd-btn-sm" asp-action="RecurringEdit" asp-route-id="@r.Id">Düzenle</a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

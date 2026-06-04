@@ -662,7 +662,7 @@ public static class DatabaseSeeder
                 DepartmentId = itDepartment.Id,
                 CronExpression = "0 9 1 * *",
                 CreatedById = adminUser.Id,
-                NextRunAt = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1).AddMonths(1).AddHours(9)
+                NextRunAt = new DateTime(DateTime.UtcNow.Year, DateTime.UtcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc).AddMonths(1).AddHours(9)
             },
             new RecurringTicket
             {

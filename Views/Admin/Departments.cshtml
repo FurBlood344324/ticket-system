@@ -1,0 +1,49 @@
+@model List<Department>
+@{
+    ViewData["Title"] = "Departmanlar";
+}
+
+<div class="cd-page-head">
+    <span class="cd-eyebrow">Yönetim · Departmanlar</span>
+    <h1>Departmanlar</h1>
+</div>
+<partial name="_AdminNav" />
+
+<div class="cd-toolbar">
+    <span class="cd-pill cyan">@Model.Count kayıt</span>
+    <span class="cd-spacer"></span>
+    <a class="cd-btn cd-btn-primary" asp-action="DepartmentCreate">+ Yeni Departman</a>
+</div>
+
+<div class="cd-table-wrap">
+    <table class="cd-table">
+        <thead>
+            <tr><th>#</th><th>Ad</th><th>Açıklama</th><th>Durum</th><th></th></tr>
+        </thead>
+        <tbody>
+            @if (Model.Count == 0)
+            {
+                <tr><td colspan="5"><div class="cd-empty">kayıt yok</div></td></tr>
+            }
+            @foreach (var d in Model)
+            {
+                <tr>
+                    <td class="cd-id">@d.Id</td>
+                    <td>@d.Name</td>
+                    <td>@(string.IsNullOrWhiteSpace(d.Description) ? "—" : d.Description)</td>
+                    <td>
+                        @if (d.IsActive)
+                        {
+                            <span class="cd-pill green"><span class="cd-dot"></span> aktif</span>
+                        }
+                        else
+                        {
+                            <span class="cd-pill off"><span class="cd-dot off"></span> pasif</span>
+                        }
+                    </td>
+                    <td><a class="cd-btn cd-btn-sm" asp-action="DepartmentEdit" asp-route-id="@d.Id">Düzenle</a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>

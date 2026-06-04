@@ -1,0 +1,46 @@
+@model CannedResponseFormViewModel
+@{
+    var isEdit = Model.Id != 0;
+    ViewData["Title"] = isEdit ? "Hazır Yanıt Düzenle" : "Yeni Hazır Yanıt";
+}
+
+<div class="cd-page-head">
+    <span class="cd-eyebrow">Yönetim · Hazır Yanıtlar · @(isEdit ? "Düzenle" : "Yeni")</span>
+    <h1>@(isEdit ? "Hazır Yanıt Düzenle" : "Yeni Hazır Yanıt")</h1>
+</div>
+
+<div class="cd-card" style="max-width:820px;">
+    <div class="cd-card-body">
+        <form asp-action="@(isEdit ? "CannedEdit" : "CannedCreate")" method="post" class="cd-form">
+            @Html.AntiForgeryToken()
+            <input type="hidden" asp-for="Id" />
+            <div asp-validation-summary="ModelOnly" class="text-danger mb-3"></div>
+            <div class="cd-form-grid">
+                <div class="cd-field">
+                    <label asp-for="Title"></label>
+                    <input asp-for="Title" class="cd-input" />
+                    <span asp-validation-for="Title"></span>
+                </div>
+                <div class="cd-field">
+                    <label asp-for="Category"></label>
+                    <input asp-for="Category" class="cd-input" placeholder="örn. Faturalama" />
+                    <span asp-validation-for="Category"></span>
+                </div>
+            </div>
+            <div class="cd-field">
+                <label asp-for="Content"></label>
+                <textarea asp-for="Content" class="cd-input"></textarea>
+                <span asp-validation-for="Content"></span>
+            </div>
+            <div class="cd-field">
+                <label class="cd-check"><input asp-for="IsShared" type="checkbox" /> Ekip ile paylaş</label>
+            </div>
+            <div class="cd-toolbar mt-2">
+                <button type="submit" class="cd-btn cd-btn-primary">Kaydet</button>
+                <a class="cd-btn cd-btn-ghost" asp-action="CannedResponses">Vazgeç</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+@section Scripts { <partial name="_ValidationScriptsPartial" /> }

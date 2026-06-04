@@ -1,31 +1,72 @@
-@model List<TicketSupport.Models.AppUser>
+@model AdminOverviewViewModel
 @{
     ViewData["Title"] = "Yönetim Paneli";
 }
 
-<h2>Yönetim Paneli</h2>
+<div class="cd-page-head">
+    <span class="cd-eyebrow">Yönetim</span>
+    <h1>Komuta Merkezi</h1>
+    <p>Sistemin canlı durumu ve yönetim kısayolları.</p>
+</div>
 
-<h4 class="mt-4">Kullanıcılar</h4>
-<table class="table table-striped">
-    <thead>
-        <tr>
-            <th>Id</th>
-            <th>Ad Soyad</th>
-            <th>E-posta</th>
-            <th>Rol</th>
-            <th>Departman</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var user in Model)
-        {
-            <tr>
-                <td>@user.Id</td>
-                <td>@user.FullName</td>
-                <td>@user.Email</td>
-                <td>@user.Role</td>
-                <td>@(user.Department?.Name ?? "-")</td>
-            </tr>
-        }
-    </tbody>
-</table>
+<partial name="_AdminNav" />
+
+<div class="cd-section-title">Sistem Metrikleri</div>
+<div class="cd-stat-grid mb-4">
+    <a class="cd-stat accent-cyan" asp-action="Users">
+        <div class="cd-stat-value">@Model.TotalUsers</div>
+        <div class="cd-stat-label">Toplam Kullanıcı</div>
+    </a>
+    <a class="cd-stat accent-green" asp-action="Users">
+        <div class="cd-stat-value">@Model.ActiveUsers</div>
+        <div class="cd-stat-label">Aktif Kullanıcı</div>
+    </a>
+    <a class="cd-stat" asp-controller="Tickets" asp-action="Index">
+        <div class="cd-stat-value">@Model.TotalTickets</div>
+        <div class="cd-stat-label">Toplam Talep</div>
+    </a>
+    <a class="cd-stat accent-warn" asp-controller="Tickets" asp-action="Index">
+        <div class="cd-stat-value">@Model.OpenTickets</div>
+        <div class="cd-stat-label">Açık Talep</div>
+    </a>
+    <a class="cd-stat accent-danger" asp-controller="Tickets" asp-action="Index">
+        <div class="cd-stat-value">@Model.UnassignedTickets</div>
+        <div class="cd-stat-label">Atanmamış</div>
+    </a>
+    <a class="cd-stat accent-purple" asp-action="Articles">
+        <div class="cd-stat-value">@Model.PublishedArticles</div>
+        <div class="cd-stat-label">Yayında Makale</div>
+    </a>
+</div>
+
+<div class="cd-section-title">Yapılandırma</div>
+<div class="cd-stat-grid">
+    <a class="cd-stat" asp-action="Departments">
+        <div class="cd-stat-value">@Model.DepartmentCount</div>
+        <div class="cd-stat-label">Departman</div>
+    </a>
+    <a class="cd-stat" asp-action="SlaPolicies">
+        <div class="cd-stat-value">@Model.SlaPolicyCount</div>
+        <div class="cd-stat-label">SLA Politikası</div>
+    </a>
+    <a class="cd-stat" asp-action="Templates">
+        <div class="cd-stat-value">@Model.TemplateCount</div>
+        <div class="cd-stat-label">Şablon</div>
+    </a>
+    <a class="cd-stat" asp-action="CannedResponses">
+        <div class="cd-stat-value">@Model.CannedResponseCount</div>
+        <div class="cd-stat-label">Hazır Yanıt</div>
+    </a>
+    <a class="cd-stat" asp-action="Tags">
+        <div class="cd-stat-value">@Model.TagCount</div>
+        <div class="cd-stat-label">Etiket</div>
+    </a>
+    <a class="cd-stat" asp-action="Recurring">
+        <div class="cd-stat-value">@Model.RecurringCount</div>
+        <div class="cd-stat-label">Yinelenen Talep</div>
+    </a>
+    <a class="cd-stat" asp-action="Categories">
+        <div class="cd-stat-value">@Model.CategoryCount</div>
+        <div class="cd-stat-label">KB Kategori</div>
+    </a>
+</div>
