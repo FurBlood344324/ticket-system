@@ -176,6 +176,55 @@ namespace TicketSupport.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("TicketSupport.Models.CannedResponse", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("character varying(4000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CreatedById")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CreatedByName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.Property<bool>("IsShared")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<int>("UsageCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CannedResponses");
+                });
+
             modelBuilder.Entity("TicketSupport.Models.CustomerOrganization", b =>
                 {
                     b.Property<int>("Id")
@@ -214,6 +263,42 @@ namespace TicketSupport.Migrations
                     b.HasIndex("CompanyName");
 
                     b.ToTable("CustomerOrganizations");
+                });
+
+            modelBuilder.Entity("TicketSupport.Models.CustomerSatisfaction", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsVisibleToCustomer")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("Rating")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TicketId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TicketId");
+
+                    b.ToTable("CustomerSatisfactions", t =>
+                        {
+                            t.HasCheckConstraint("CK_CustomerSatisfaction_Rating", "\"Rating\" >= 1 AND \"Rating\" <= 5");
+                        });
                 });
 
             modelBuilder.Entity("TicketSupport.Models.Department", b =>
@@ -577,6 +662,63 @@ namespace TicketSupport.Migrations
                     b.ToTable("Tickets");
                 });
 
+            modelBuilder.Entity("TicketSupport.Models.TicketAttachment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<long>("FileSize")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<int?>("ReplyId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("StoragePath")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<int>("TicketId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UploadedById")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UploadedByName")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("character varying(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReplyId");
+
+                    b.HasIndex("TicketId");
+
+                    b.ToTable("TicketAttachments");
+                });
+
             modelBuilder.Entity("TicketSupport.Models.TicketAuditEvent", b =>
                 {
                     b.Property<int>("Id")
@@ -647,15 +789,33 @@ namespace TicketSupport.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool>("IsAiSuggested")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsInternal")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Message")
                         .IsRequired()
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
 
+                    b.Property<int?>("TemplateId")
+                        .HasColumnType("integer");
+
                     b.Property<int>("TicketId")
                         .HasColumnType("integer");
 
+                    b.Property<int?>("TimeSpentMinutes")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("TemplateId");
 
                     b.HasIndex("TicketId");
 
@@ -936,6 +1096,17 @@ namespace TicketSupport.Migrations
                     b.Navigation("Organization");
                 });
 
+            modelBuilder.Entity("TicketSupport.Models.CustomerSatisfaction", b =>
+                {
+                    b.HasOne("TicketSupport.Models.SupportTicket", "Ticket")
+                        .WithMany("SatisfactionEntries")
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Ticket");
+                });
+
             modelBuilder.Entity("TicketSupport.Models.KnowledgeArticle", b =>
                 {
                     b.HasOne("TicketSupport.Models.KnowledgeCategory", "Category")
@@ -994,6 +1165,24 @@ namespace TicketSupport.Migrations
                     b.Navigation("Department");
                 });
 
+            modelBuilder.Entity("TicketSupport.Models.TicketAttachment", b =>
+                {
+                    b.HasOne("TicketSupport.Models.TicketReply", "Reply")
+                        .WithMany("Attachments")
+                        .HasForeignKey("ReplyId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TicketSupport.Models.SupportTicket", "Ticket")
+                        .WithMany("Attachments")
+                        .HasForeignKey("TicketId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Reply");
+
+                    b.Navigation("Ticket");
+                });
+
             modelBuilder.Entity("TicketSupport.Models.TicketAuditEvent", b =>
                 {
                     b.HasOne("TicketSupport.Models.SupportTicket", null)
@@ -1005,11 +1194,20 @@ namespace TicketSupport.Migrations
 
             modelBuilder.Entity("TicketSupport.Models.TicketReply", b =>
                 {
-                    b.HasOne("TicketSupport.Models.SupportTicket", null)
+                    b.HasOne("TicketSupport.Models.CannedResponse", "Template")
+                        .WithMany("Replies")
+                        .HasForeignKey("TemplateId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("TicketSupport.Models.SupportTicket", "Ticket")
                         .WithMany("Replies")
                         .HasForeignKey("TicketId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Template");
+
+                    b.Navigation("Ticket");
                 });
 
             modelBuilder.Entity("TicketSupport.Models.TicketTagRelation", b =>
@@ -1065,6 +1263,11 @@ namespace TicketSupport.Migrations
                     b.Navigation("NotificationPreferences");
                 });
 
+            modelBuilder.Entity("TicketSupport.Models.CannedResponse", b =>
+                {
+                    b.Navigation("Replies");
+                });
+
             modelBuilder.Entity("TicketSupport.Models.CustomerOrganization", b =>
                 {
                     b.Navigation("Members");
@@ -1077,13 +1280,22 @@ namespace TicketSupport.Migrations
 
             modelBuilder.Entity("TicketSupport.Models.SupportTicket", b =>
                 {
+                    b.Navigation("Attachments");
+
                     b.Navigation("AuditEvents");
 
                     b.Navigation("Replies");
 
+                    b.Navigation("SatisfactionEntries");
+
                     b.Navigation("Tags");
 
                     b.Navigation("TimeEntries");
+                });
+
+            modelBuilder.Entity("TicketSupport.Models.TicketReply", b =>
+                {
+                    b.Navigation("Attachments");
                 });
 
             modelBuilder.Entity("TicketSupport.Models.TicketTag", b =>
